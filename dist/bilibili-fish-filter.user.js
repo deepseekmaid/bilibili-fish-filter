@@ -1159,10 +1159,13 @@ if (globalThis.chrome?.storage?.sync) {
 
   function applySettings(patch) {
     const next = normalize({ ...settings, ...patch });
+    const autoChanged = next.autoLoad !== settings.autoLoad;
     Object.assign(settings, next);
     storeSet(BAF_STORE_KEY, next);
-    resetAuto();
-    schedule();
+    // 只有「自动加载」开关变化才需要重排加载；其它规则改动直接重扫即可，
+    // 否则每点一下开关都会把正在进行的加载重新开始。
+    if (autoChanged) resetAuto();
+    else schedule();
     return next;
   }
 
