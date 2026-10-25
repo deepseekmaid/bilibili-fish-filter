@@ -1384,7 +1384,6 @@ if (globalThis.chrome?.storage?.sync) {
 
   const FAB_POS_KEY = 'baf.fab.pos.v1';
   let fabOffset = { x: 0, y: 0 };
-  let fabDragEndedAt = 0;
 
   function applyFabOffset(x, y) {
     fabOffset = { x: Math.round(x), y: Math.round(y) };
@@ -1446,15 +1445,22 @@ if (globalThis.chrome?.storage?.sync) {
         const next = clampFabOffset(start.x + dx, start.y + dy, base);
         applyFabOffset(next.x, next.y);
       };
-      const finish = () => {
+      const finish = (upEvent) => {
         document.removeEventListener(DRAG_MOVE, onMove, true);
         document.removeEventListener(DRAG_UP, finish, true);
         document.removeEventListener('pointercancel', finish, true);
         fabEl.classList.remove('is-dragging');
         if (moved) {
-          fabDragEndedAt = Date.now();
           storeSet(FAB_POS_KEY, fabOffset);
+          return;
         }
+        // 没移动就是一次轻点：在球上松手就开合面板，不需要等
+        const path = upEvent && typeof upEvent.composedPath === 'function' ? upEvent.composedPath() : [];
+        // 在 shadow DOM 外看，事件 target 会被重定向到宿主元素，所以两种都要认
+        const onFab = (upEvent && upEvent.target === fabEl)
+          || path.includes(fabEl)
+          || path.includes(panelHost);
+        if (onFab) togglePanel();
       };
 
       document.addEventListener(DRAG_MOVE, onMove, true);
@@ -1463,13 +1469,8 @@ if (globalThis.chrome?.storage?.sync) {
     });
 
     fabEl.addEventListener('click', (event) => {
-      // 刚拖完的那一下不当作点击
-      if (Date.now() - fabDragEndedAt < 300) {
-        event.preventDefault();
-        event.stopPropagation();
-        return;
-      }
-      togglePanel();
+      // 鼠标的点击已在 pointerup 里判定；这里只接键盘触发的 click（detail 为 0）
+      if (event.detail === 0) togglePanel();
     });
   }
 

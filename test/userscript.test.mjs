@@ -159,7 +159,8 @@ test('油猴版：面板复用扩展弹窗（同样的结构与版本号）', as
     assert.match(fab.style.backgroundImage, /^url\("data:image\/png;base64,/, '悬浮球应使用图标作背景');
     assert.equal(fab.dataset.bafDrag, '1', '悬浮球应挂上拖拽标记');
     const fireFab = (type, x, y, target) => {
-      const ev = new env.window.MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 });
+      // composed: true 模拟真实指针事件能穿过 shadow 边界
+      const ev = new env.window.MouseEvent(type, { bubbles: true, composed: true, clientX: x, clientY: y, button: 0 });
       (target || env.doc.body).dispatchEvent(ev);
     };
     fireFab('pointerdown', 900, 600, fab);
@@ -168,6 +169,11 @@ test('油猴版：面板复用扩展弹窗（同样的结构与版本号）', as
     assert.match(fab.style.transform, /translate3d\(/, '拖动悬浮球应写入 transform');
     const fabPos = env.store['baf.fab.pos.v1'];
     assert.ok(fabPos && typeof fabPos.x === 'number' && typeof fabPos.y === 'number', '悬浮球位移应写入 GM 存储');
+
+    // 轻点（没有位移）应立刻开合，不需要等待
+    fireFab('pointerdown', 900, 600, fab);
+    fireFab('pointerup', 900, 600, fab);
+    assert.equal(win.hidden, true, '轻点悬浮球应立即收起面板');
   } finally {
     env.window.close();
   }
