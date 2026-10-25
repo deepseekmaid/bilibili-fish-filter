@@ -147,10 +147,6 @@ npm run version:check  # 校验 manifest / package / 油猴 @version 三处一�
 └── .github/workflows/ci.yml      测试 → 构建 → 版本校验
 ```
 
-## 版本命名
-
-发布名是 **v1.03**，但 `manifest.json` 里写的是 `"version": "1.0.3"`：Chrome 规定版本号「非零整数不能以 0 开头」，`1.02` 会被判非法、扩展直接加载失败。所以内部用合法写法，再用 `"version_name": "v1.02"` 让扩展页和弹窗显示 **v1.03**；GitHub 的 tag 与 Release 也用 `v1.03`。
-
 ## 许可
 
 [MIT](LICENSE)
