@@ -131,14 +131,6 @@ npm run build          # 生成 dist/ 下的 zip 与 .user.js
 npm run version:check  # 校验 manifest / package / 油猴 @version 三处一致
 ```
 
-### 版本号与发布
-
-- **开发 / 修复期间**：`npm run version:fix`，显示名变成 `v1.03-fix`，数字版本不变（Chrome 只认数字版本）；
-- **正式发布**：`node scripts/set-version.mjs 1.0.4`，数字版本与显示名一起切成 `v1.04`；
-- 发布时**源码、构建产物、tag 三者要一起更新**：先 `npm run build` 提交源码与 `dist/`，再打 `vX.YZ` 标签并推送，最后用同一份构建产物更新 Release 附件——zip 里的 `content.js` 必须就是仓库里那份。
-
-`version:check` 会校验 `manifest.json` / `package.json` / 油猴 `@version` 三处一致，CI 里也会跑。
-
 ### 目录结构
 
 ```
@@ -152,7 +144,7 @@ npm run version:check  # 校验 manifest / package / 油猴 @version 三处一�
 │   ├── build.mjs                 零依赖打 zip
 │   ├── build-userscript.mjs      由 content.js 生成油猴脚本
 │   ├── check-version.mjs         版本一致性校验
-│   ├── set-version.mjs           开发期 -fix / 正式发布版本切换
+│   ├── set-version.mjs           版本号切换
 │   └── userscript/               油猴适配层与素材（tail.js、fab.webp）
 ├── test/                         扩展 / 面板 / 油猴断言
 └── .github/workflows/ci.yml      测试 → 构建 → 版本校验
