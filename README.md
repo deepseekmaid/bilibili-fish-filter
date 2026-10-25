@@ -154,4 +154,4 @@ npm run version:check  # 校验 manifest / package / 油猴 @version 三处一�
 
 [MIT](LICENSE)
 
-##插件由 GPT-6-astra 协助制作。
+插件由 deepseek 协助制作。
