@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>B站大肥鱼过滤器</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    width: 328px; margin: 0; background: #ffffff; color: #1f2329;
+    font: 13px/1.5 "Microsoft YaHei UI", "PingFang SC", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  header { display: flex; gap: 9px; align-items: center; padding: 10px 14px 5px; }
+  header img { width: 26px; height: 26px; border-radius: 7px; flex: 0 0 auto; }
+  h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: .2px; color: #1f2329; }
+  header p { margin: 2px 0 0; font-size: 11px; color: #8a91a0; }
+  .rulebar {
+    margin: 0 12px 5px; padding: 5px 9px; border-radius: 8px;
+    background: #f3f6ff; border: 1px solid #e3eaff;
+    font-size: 10px; line-height: 1.5; color: #55618a;
+  }
+  .rulebar b { color: #4d6bfe; font-weight: 600; }
+  .rulebar i { color: #e5484d; font-style: normal; }
+  main { padding: 0 6px 6px; }
+  .block { border-radius: 11px; border: 1px solid transparent; transition: background .16s, border-color .16s; }
+  .block + .block { margin-top: 5px; }
+  .block:hover { background: #f7f9fd; border-color: #edf1f8; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; }
+  .row .txt { flex: 1 1 auto; min-width: 0; }
+  .row b { display: block; font-size: 12.5px; font-weight: 600; color: #1f2329; }
+  .row code { font-size: 11px; color: #3b6fd4; background: #f3f6ff; padding: 0 3px; border-radius: 4px; }
+  .desc { display: block; margin-top: 3px; font-size: 10.5px; line-height: 1.5; color: #4b5563; }
+  input[type=checkbox] { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+  .sw {
+    flex: 0 0 auto; width: 40px; height: 23px; border-radius: 12px;
+    background: #d9dee8; position: relative; transition: background .18s ease;
+  }
+  .sw::after {
+    content: ""; position: absolute; top: 3px; left: 3px;
+    width: 17px; height: 17px; border-radius: 50%;
+    background: #ffffff; box-shadow: 0 1px 3px rgba(31, 35, 41, .18);
+    transition: transform .18s ease;
+  }
+  input:checked + .sw { background: #4d6bfe; }
+  input:checked + .sw::after { transform: translateX(17px); }
+  input:focus-visible + .sw { outline: 2px solid #4d6bfe; outline-offset: 2px; }
+  .hint { padding: 0 8px 5px; font-size: 10.5px; line-height: 1.5; color: #6b7280; }
+  .sub { display: flex; align-items: center; gap: 8px; padding: 0 8px 6px; }
+  .sub .cap { font-size: 11px; color: #6b7280; }
+  .seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 8px; background: #f2f5fa; border: 1px solid #e5eaf3; }
+  .seg button {
+    border: 0; background: transparent; color: #6b7280; cursor: pointer;
+    font: inherit; font-size: 11px; line-height: 1; padding: 5px 11px; border-radius: 6px;
+    transition: background .16s, color .16s;
+  }
+  .seg button:hover { color: #4d6bfe; }
+  .seg button.on { background: #4d6bfe; color: #ffffff; }
+  footer {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 6px 14px 8px; border-top: 1px solid #eef1f6;
+    font-size: 11px; color: #6b7280;
+  }
+  .notice {
+    padding: 0 14px 4px; font-size: 10px; line-height: 1.6; color: #6b7280;
+  }
+  .diag {
+    padding: 3px 14px 0; font-size: 10px; line-height: 1.45; color: #6b7280;
+    border-top: 1px solid #eef1f6;
+  }
+  footer .saved { color: #16a34a; opacity: 0; transition: opacity .2s; }
+  footer .saved.on { opacity: 1; }
+  footer .ver { color: #9aa1ad; }
+</style>
+</head>
+<body>
+  <header>
+    <img src="icons/icon48.png" alt="">
+    <div>
+      <h1>B站大肥鱼过滤器</h1>
+      <p>白名单：命中的留下，其余删除</p>
+    </div>
+  </header>
+
+  <div class="notice">没评论可显示时会自动加载更多（不滚动页面）</div>
+
+  <main>
+    <section class="block" id="combineBlock">
+      <div class="row">
+        <div class="txt"><b>规则组合</b></div>
+        <div class="seg" id="combineSeg">
+          <button type="button" data-combine="union" class="on">并集</button>
+          <button type="button" data-combine="intersect">交集</button>
+        </div>
+      </div>
+      <div class="hint">并集：命中任一就保留；交集：三条规则全命中才保留</div>
+    </section>
+
+    <section class="block" id="fishBlock">
+      <label class="row">
+        <div class="txt">
+          <b>规则一：昵称含「鱼」</b>
+          <span class="desc">只留昵称带「鱼 / 魚」的评论。<b style="display:inline;color:#4d6bfe;white-space:nowrap">默认开启</b></span>
+        </div>
+        <input type="checkbox" id="modeFish">
+        <span class="sw"></span>
+      </label>
+    </section>
+
+    <section class="block" id="atBlock">
+      <div class="row">
+        <div class="txt">
+          <b>规则二：正文含 @</b>
+          <span class="desc">带 <code>@</code> 的评论留下。</span>
+        </div>
+      </div>
+      <div class="sub">
+        <div class="seg" id="atSeg">
+          <button type="button" data-mode="contains">包含 @</button>
+          <button type="button" data-mode="startsWith">以 @ 开头</button>
+          <button type="button" data-mode="off" class="on">关</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="masterBlock">
+      <div class="row">
+        <div class="txt">
+          <b>规则三：「主人」</b>
+          <span class="desc">正文提到「主人」也留下。</span>
+        </div>
+      </div>
+      <div class="sub">
+        <div class="seg" id="masterSeg">
+          <button type="button" data-mode="contains">包含主人</button>
+          <button type="button" data-mode="startsWith" class="on">以主人开头</button>
+          <button type="button" data-mode="off">关</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="block off" id="autoBlock">
+      <label class="row">
+        <div class="txt">
+          <b>一直加载到底</b>
+          <span class="desc">不管有没有可显示的评论，都加载到全部加载完。</span>
+        </div>
+        <input type="checkbox" id="autoLoad">
+        <span class="sw"></span>
+      </label>
+    </section>
+
+    <section class="block off" id="fastBlock">
+      <label class="row">
+        <div class="txt">
+          <b>快速模式</b>
+          <span class="desc">加载时不逐页过滤、请求零等待；可能短暂露出未过滤评论。</span>
+        </div>
+        <input type="checkbox" id="fastMode">
+        <span class="sw"></span>
+      </label>
+    </section>
+  </main>
+
+  <div class="notice">注意：规则二、三都选「以…开头」且组合为交集时，一条评论都不会显示。</div>
+  <div class="diag" id="diag">自动加载：待检测</div>
+
+  <footer>
+    <span id="count">正在读取本页…</span>
+    <span class="saved" id="saved">已保存</span>
+    <span class="ver" id="ver">v1.01</span>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

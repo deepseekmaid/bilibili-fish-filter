@@ -1,0 +1,22 @@
+{
+  "name": "bilibili-fish-filter",
+  "version": "1.0.1",
+  "private": true,
+  "type": "module",
+  "description": "白名单式 B 站评论过滤：昵称含鱼 / 正文含 @ / 正文含主人，任选并集或交集。",
+  "displayName": "B站大肥鱼过滤器",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "pretest": "node scripts/build-userscript.mjs",
+    "test": "node test/filter.test.mjs && node test/userscript.test.mjs",
+    "build": "node scripts/build.mjs && node scripts/build-userscript.mjs",
+    "version:check": "node scripts/check-version.mjs",
+    "verify": "npm run version:check && npm test && npm run build && npm run version:check"
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.3"
+  }
+}
