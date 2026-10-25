@@ -333,15 +333,28 @@
     // 快速模式：加载过程中不做逐页重扫，把过滤推迟到加载结束，省掉每页一次的扫描与重排
     if (settings.fastMode && autoBusy()) return;
 
+    // 用 rAF：改完在下一帧绘制前生效，新评论不会先以“未过滤”的样子闪一下，
+    // 页面高度也不会先涨再缩（滚动条抽搐的主要来源）。
+    // 但浏览器会节流甚至完全不给 rAF（窗口被遮挡、调试模式、无绘制时），
+    // 一旦 rAF 不回来，pending 会一直占着、后续所有重扫都被挡掉——所以配一个定时兜底。
+    const token = { done: false, rafId: 0, timerId: 0 };
+    pending = token;
+
     const run = () => {
-      pending = null;
+      if (token.done) return;
+      token.done = true;
+      if (pending === token) pending = null;
+      if (token.rafId && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(token.rafId);
+      if (token.timerId) clearTimeout(token.timerId);
       pass();
     };
-    // 用 rAF：改完在下一帧绘制前生效，新评论不会先以“未过滤”的样子闪一下，
-    // 页面高度也不会先涨再缩（滚动条抽搐的主要来源）
-    pending = typeof requestAnimationFrame === 'function' && document.visibilityState !== 'hidden'
-      ? requestAnimationFrame(run)
-      : setTimeout(run, 60);
+
+    if (typeof requestAnimationFrame === 'function' && document.visibilityState !== 'hidden') {
+      token.rafId = requestAnimationFrame(run);
+      token.timerId = setTimeout(run, 200);
+    } else {
+      token.timerId = setTimeout(run, 60);
+    }
   }
 
   // attachShadow 不会触发外层观察器，靠低频兜底扫描补齐延迟挂载的评论区

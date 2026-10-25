@@ -10,6 +10,10 @@
 ### 变更
 
 - 油猴脚本头补充 `@homepageURL` / `@supportURL` / `@downloadURL` / `@updateURL`，`@namespace` 修正为真实仓库地址。
+
+### 修复
+
+- **扫描调度可能永久卡住**：调度依赖 `requestAnimationFrame`，浏览器在窗口被遮挡、无绘制等情况下会节流甚至不触发 rAF，此时 `pending` 一直占位，后续所有设置变更都不再重扫。现在每次调度都配一个 200ms 定时兜底，rAF 正常时由它抢先并取消定时器，rAF 不回来时由定时器执行。
 ## v1.02 — 2026-10-25
 
 ### 修复
