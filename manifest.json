@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "B站大肥鱼过滤器",
-  "version": "1.0.3",
-  "version_name": "v1.03",
+  "version": "1.0.4",
+  "version_name": "v1.04",
   "description": "白名单式 B 站评论过滤：三条规则（昵称含鱼 / 正文含 @ / 正文含主人）可独立设挡，取并集或交集。",
   "permissions": ["storage"],
   "icons": {

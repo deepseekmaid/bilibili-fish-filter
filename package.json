@@ -1,6 +1,6 @@
 {
   "name": "bilibili-fish-filter",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "type": "module",
   "description": "白名单式 B 站评论过滤：昵称含鱼 / 正文含 @ / 正文含主人，任选并集或交集。",

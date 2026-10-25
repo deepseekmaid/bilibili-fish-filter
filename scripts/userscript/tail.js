@@ -180,6 +180,13 @@
 
   // 交互控件不参与拖动，避免点开关时把面板拖走
   const NO_DRAG_SEL = 'button, input, label, select, textarea, a, .seg, .sw, [data-no-drag]';
+  // 登记当前拖拽的收尾函数：失焦、可见性变化、或下一次按下时用它兜底
+  let activeDragFinish = null;
+  function runActiveDragFinish() {
+    const fn = activeDragFinish;
+    activeDragFinish = null;
+    if (fn) fn();
+  }
   const DRAG_USE_POINTER = typeof window.PointerEvent === 'function';
   const DRAG_DOWN = DRAG_USE_POINTER ? 'pointerdown' : 'mousedown';
   const DRAG_MOVE = DRAG_USE_POINTER ? 'pointermove' : 'mousemove';
@@ -190,15 +197,6 @@
     if (!panelWindow || panelWindow.dataset.bafDrag === '1') return;
     panelWindow.dataset.bafDrag = '1';
 
-    const header = panelWindow.querySelector('.baf-popup header');
-    if (header && !header.querySelector('.baf-grip')) {
-      const grip = document.createElement('span');
-      grip.className = 'baf-grip';
-      grip.textContent = '⠿';
-      grip.title = '拖动面板';
-      header.insertBefore(grip, header.firstChild);
-    }
-
     const isInteractive = (target) => {
       if (!target || typeof target.closest !== 'function') return false;
       return Boolean(target.closest(NO_DRAG_SEL));
@@ -206,7 +204,8 @@
 
     panelWindow.addEventListener(DRAG_DOWN, (event) => {
       if (event.button !== undefined && event.button !== 0) return;
-      if (panelDragging) return;
+      // 上一次拖拽若卡住了（在窗口外松手），先收尾再重新开始
+      if (panelDragging) runActiveDragFinish();
       if (isInteractive(event.target)) return;
 
       // 拖动期间不要选中页面文字
@@ -230,23 +229,36 @@
         applyPanelOffset(next.x, next.y);
       };
       panelDragging = true;
+      let finished = false;
       const finish = () => {
+        if (finished) return;
+        finished = true;
+        activeDragFinish = null;
         document.removeEventListener(DRAG_MOVE, onMove, true);
         document.removeEventListener(DRAG_UP, finish, true);
         document.removeEventListener('pointercancel', finish, true);
+        document.removeEventListener('lostpointercapture', finish, true);
         document.removeEventListener('blur', finish, true);
+        document.removeEventListener('visibilitychange', onVisibility, true);
         document.documentElement.style.userSelect = prevUserSelect;
         panelWindow.classList.remove('is-dragging');
         panelDragging = false;
         storeSet(PANEL_POS_KEY, { x: panelOffset.x, y: panelOffset.y });
+        try { panelWindow.releasePointerCapture?.(event.pointerId); } catch { /* ignore */ }
       };
-      // 窗口失焦时 pointerup 可能收不到，直接收尾，避免卡在拖拽态
-      document.addEventListener('blur', finish, true);
+      const onVisibility = () => { if (document.visibilityState === 'hidden') finish(); };
+      activeDragFinish = finish;
+
+      // 指针捕获：鼠标拖到窗口外松手时，pointerup 仍会回到这里
+      try { panelWindow.setPointerCapture?.(event.pointerId); } catch { /* ignore */ }
 
       // 用捕获阶段监听：页面自己的 pointermove 处理不会把事件吃掉
       document.addEventListener(DRAG_MOVE, onMove, true);
       document.addEventListener(DRAG_UP, finish, true);
       document.addEventListener('pointercancel', finish, true);
+      document.addEventListener('lostpointercapture', finish, true);
+      document.addEventListener('blur', finish, true);
+      document.addEventListener('visibilitychange', onVisibility, true);
     });
   }
 
@@ -296,7 +308,8 @@
 
     fabEl.addEventListener(DRAG_DOWN, (event) => {
       if (event.button !== undefined && event.button !== 0) return;
-      if (fabDragging) return;
+      // 上一次拖拽若卡住（窗口外松手），先收尾，保证下一次按下一定生效
+      if (fabDragging) runActiveDragFinish();
       event.preventDefault();
 
       const base = fabBase();
@@ -315,13 +328,20 @@
         applyFabOffset(next.x, next.y);
       };
       fabDragging = true;
+      let finished = false;
       const finish = (upEvent) => {
+        if (finished) return;
+        finished = true;
+        activeDragFinish = null;
         document.removeEventListener(DRAG_MOVE, onMove, true);
         document.removeEventListener(DRAG_UP, finish, true);
         document.removeEventListener('pointercancel', finish, true);
+        document.removeEventListener('lostpointercapture', finish, true);
         document.removeEventListener('blur', finish, true);
+        document.removeEventListener('visibilitychange', onVisibility, true);
         fabDragging = false;
         fabEl.classList.remove('is-dragging');
+        try { fabEl.releasePointerCapture?.(event.pointerId); } catch { /* ignore */ }
         if (moved) {
           storeSet(FAB_POS_KEY, fabOffset);
           return;
@@ -334,15 +354,24 @@
           || path.includes(panelHost);
         if (onFab) togglePanel();
       };
+      const onVisibility = () => { if (document.visibilityState === 'hidden') finish(); };
+      activeDragFinish = finish;
+
+      // 指针捕获：拖出浏览器窗口再松手也能收到 pointerup
+      try { fabEl.setPointerCapture?.(event.pointerId); } catch { /* ignore */ }
 
       document.addEventListener(DRAG_MOVE, onMove, true);
       document.addEventListener(DRAG_UP, finish, true);
       document.addEventListener('pointercancel', finish, true);
+      document.addEventListener('lostpointercapture', finish, true);
       document.addEventListener('blur', finish, true);
+      document.addEventListener('visibilitychange', onVisibility, true);
     });
 
     fabEl.addEventListener('click', (event) => {
-      // 鼠标的点击已在 pointerup 里判定；这里只接键盘触发的 click（detail 为 0）
+      // 鼠标点击已由 pointerup 判定；这里只接键盘（detail 为 0）。
+      // 若上一次拖拽卡住（窗口外松手），先自愈再按轻点处理。
+      if (fabDragging) runActiveDragFinish();
       if (event.detail === 0) togglePanel();
     });
   }
@@ -355,6 +384,15 @@
       const chromeShim = chromeForPanel();
       const docShim = { getElementById: (id) => panelWindow.querySelector('#' + id) };
       bafPopupMain(chromeShim, docShim, { chrome: chromeShim });
+      // 头部每次都是新建的，把手要跟着补
+      const header = panelWindow.querySelector('.baf-popup header');
+      if (header && !header.querySelector('.baf-grip')) {
+        const grip = document.createElement('span');
+        grip.className = 'baf-grip';
+        grip.textContent = '⠿';
+        grip.title = '拖动面板';
+        header.insertBefore(grip, header.firstChild);
+      }
       makePanelDraggable();
       if (!restorePanelOffset()) placePanelNearFab();
     } catch (error) {

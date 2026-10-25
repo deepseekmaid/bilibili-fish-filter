@@ -4,13 +4,13 @@
 
 **——让你的 B站评论区充满卖萌的大肥鱼！**
 
-![版本](https://img.shields.io/badge/version-v1.03-4d6bfe) ![许可](https://img.shields.io/badge/license-MIT-green) ![平台](https://img.shields.io/badge/Chrome%20%7C%20Edge%20%7C%20Tampermonkey-ok-4d6bfe)
+![版本](https://img.shields.io/badge/version-v1.04-4d6bfe) ![许可](https://img.shields.io/badge/license-MIT-green) ![平台](https://img.shields.io/badge/Chrome%20%7C%20Edge%20%7C%20Tampermonkey-ok-4d6bfe)
 
 </div>
 
 按昵称和正文挑评论的 B 站评论区过滤器。三条规则各自可以设挡，也能组合成并集或交集；命中的留下，其余隐藏。扩展与油猴脚本共用同一套规则和同一个设置面板。
 
-![设置面板](docs/popup-v1.03.png)
+![设置面板](docs/popup-v1.04.png)
 
 ## 功能
 
@@ -22,7 +22,7 @@
 
 ## 实际效果
 
-![规则实测](docs/demo-v1.03.png)
+![规则实测](docs/demo-v1.04.png)
 
 ## 三条规则
 
@@ -47,7 +47,7 @@
 
 ### Chrome / Edge 扩展
 
-1. 下载 [`bilibili-fish-filter-v1.03.zip`](https://github.com/deepseekmaid/bilibili-fish-filter/releases/latest) 并解压；
+1. 下载 [`bilibili-fish-filter-v1.04.zip`](https://github.com/deepseekmaid/bilibili-fish-filter/releases/latest) 并解压；
 2. 打开 `chrome://extensions`（Edge 为 `edge://extensions`），右上角开启「开发者模式」；
 3. 点「加载已解压的扩展程序」，选择解压出的 `bilibili-fish-filter/` 目录；
 4. 刷新已打开的 B 站页面。
@@ -80,13 +80,13 @@
 2. 点 Tampermonkey 图标 → **管理面板**；
 3. 切到 **实用工具 / Utilities** 标签页；
 4. 在 **Import from URL / 从 URL 安装** 里粘贴 URL，点「安装」；
-5. 安装页里确认名称是「B站大肥鱼过滤器（油猴版）」、版本是 `1.0.3`，点「安装」。
+5. 安装页里确认名称是「B站大肥鱼过滤器（油猴版）」、版本是 `1.0.4`，点「安装」。
 
 **方式 C**：完全离线也能装：在脚本链接页面全选复制代码 → 管理面板 → 点「+」新建脚本 → 全选删除 → 粘贴 → `Ctrl+S` 保存。
 
 #### 第 3 步 · 确认生效
 
-1. 点 Tampermonkey 图标 → 「管理面板」，列表里应出现 **B站大肥鱼过滤器（油猴版）**，版本 `1.0.3`，状态为已启用；
+1. 点 Tampermonkey 图标 → 「管理面板」，列表里应出现 **B站大肥鱼过滤器（油猴版）**，版本 `1.0.4`，状态为已启用；
 2. 打开任意 B 站视频页并刷新；
 3. 页面**右下角**出现一个蓝色圆形按钮，点开就是设置面板。
 
@@ -94,13 +94,16 @@
 
 #### 更新脚本
 
-- **手动**：重新点一次上面的安装链接，Tampermonkey 会提示有新版本并覆盖安装；也可以在管理面板点「检查更新」。
-- **自动**：脚本里已写了 `@updateURL`，Tampermonkey 默认每天检查一次并自动升级到新版本。不想要自动更新的话，在管理面板打开本脚本的「设置」，把「检查更新」关掉即可。
+重新点一次上面的安装链接，Tampermonkey 会打开安装页并覆盖成新版本。
 
-## 使用## 使用
+脚本**没有**写 `@updateURL`，Tampermonkey 不会在后台自动升级——想换版本时手动装一次即可。
+
+> 如果之前装过更早的构建（`@namespace` 还是占位地址），它会被识别成另一个脚本并与新版并存。请先在管理面板把旧的删掉，再装这一版。
+
+## 使用
 
 - 点工具栏图标（扩展）或右下角按钮（油猴）打开面板，任何改动即时生效，不需要刷新；
-- 油猴版右下角的**蓝色悬浮球可以拖动**：按住它拖到任意位置，位置会记住，面板会跟着出现在它上方；
+- 油猴版右下角的**蓝色悬浮球可以拖动**：按住它拖到任意位置，位置会记住；没手动摆过面板时，面板默认出现在球的上方；
 - 面板本身也可以拖动：按住顶栏（左侧有 ⠿ 把手）或任意空白处，位置同样会记住；
 - 面板底部显示当前页「保留 N 条 / 共 M 条」；
 - 主评论被隐藏时，整个楼层（含「共 N 条回复」）会一起收起，该楼下的楼中楼不会再展开。
@@ -123,7 +126,7 @@
 
 ```bash
 npm install
-npm test               # 46 项断言：扩展 37 + 后挂载 1 + 面板 3 + 油猴 5（跑前自动重建油猴脚本）
+npm test               # 48 项断言：扩展 38 + 后挂载 1 + 面板 3 + 油猴 6（跑前自动重建油猴脚本）
 npm run build          # 生成 dist/ 下的 zip 与 .user.js
 npm run version:check  # 校验 manifest / package / 油猴 @version 三处一致
 ```
@@ -149,7 +152,8 @@ npm run version:check  # 校验 manifest / package / 油猴 @version 三处一�
 │   ├── build.mjs                 零依赖打 zip
 │   ├── build-userscript.mjs      由 content.js 生成油猴脚本
 │   ├── check-version.mjs         版本一致性校验
-│   └── userscript/tail.js        油猴适配层（GM 存储 + 面板挂载）
+│   ├── set-version.mjs           开发期 -fix / 正式发布版本切换
+│   └── userscript/               油猴适配层与素材（tail.js、fab.webp）
 ├── test/                         扩展 / 面板 / 油猴断言
 └── .github/workflows/ci.yml      测试 → 构建 → 版本校验
 ```

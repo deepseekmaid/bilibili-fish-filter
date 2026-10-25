@@ -267,6 +267,7 @@ test('自动加载循环遇到异常不会永久卡死', async () => {
     window.close();
   }
 });
+
 test('热切换：关掉一个模式只影响它自己那一份', async () => {
   const env = boot({ modeAt: true, modeFish: true });
   try {

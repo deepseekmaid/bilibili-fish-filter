@@ -34,7 +34,7 @@ const bodyMatch = popupHtml.match(/<body>([\s\S]*?)<\/body>/);
 if (!bodyMatch) throw new Error('popup.html 里找不到 <body>');
 const iconBase64 = readFileSync(join(root, 'icons/icon48.png')).toString('base64');
 // 右下角悬浮球图标：蓝底圆 + 鲸鱼娘 + 绿钩
-const fabBase64 = readFileSync(join(root, 'scripts/userscript/fab.png')).toString('base64');
+const fabBase64 = readFileSync(join(root, 'scripts/userscript/fab.webp')).toString('base64');
 const panelHtml = bodyMatch[1]
   .replace(/<script[\s\S]*?<\/script>/g, '')
   .replace(/src="icons\/icon48\.png"/g, 'src="data:image/png;base64,' + iconBase64 + '"')
@@ -52,7 +52,7 @@ const injected = [
   '  const PANEL_CSS = ' + JSON.stringify(panelCss) + ';',
   '  const PANEL_HTML = ' + JSON.stringify(panelHtml) + ';',
   '  const BAF_DISPLAY_VERSION = ' + JSON.stringify(display) + ';',
-  '  const FAB_ICON = ' + JSON.stringify('data:image/png;base64,' + fabBase64) + ';',
+  '  const FAB_ICON = ' + JSON.stringify('data:image/webp;base64,' + fabBase64) + ';',
   '',
   '  /* ===== 下面是 popup.js 原文，作为函数体在面板里运行 ===== */',
   '  function bafPopupMain(chrome, document, globalThis) {',
@@ -74,8 +74,6 @@ const header = [
   '// @description  ' + manifest.description,
   '// @homepageURL  https://github.com/deepseekmaid/bilibili-fish-filter',
   '// @supportURL   https://github.com/deepseekmaid/bilibili-fish-filter/issues',
-  '// @downloadURL  https://raw.githubusercontent.com/deepseekmaid/bilibili-fish-filter/main/dist/bilibili-fish-filter.user.js',
-  '// @updateURL    https://raw.githubusercontent.com/deepseekmaid/bilibili-fish-filter/main/dist/bilibili-fish-filter.user.js',
   '// @match        https://www.bilibili.com/*',
   '// @match        https://t.bilibili.com/*',
   '// @match        https://space.bilibili.com/*',

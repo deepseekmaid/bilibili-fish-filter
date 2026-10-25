@@ -14,7 +14,9 @@ const pkgPath = join(root, 'package.json');
 
 function displayName(version) {
   const [major, minor, patch] = version.split('.').map((n) => parseInt(n, 10));
-  return 'v' + major + '.' + String(minor * 10 + (patch || 0)).padStart(2, '0');
+  // 显示名沿用 v1.03 这种「大版本.小版本+补丁」写法；minor/patch 超过一位时退回完整版本号，避免撞名
+  if (minor > 9 || patch > 9) return 'v' + version;
+  return 'v' + major + '.' + String(minor) + patch;
 }
 
 function replaceField(text, field, value) {

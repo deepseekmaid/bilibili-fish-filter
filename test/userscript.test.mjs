@@ -121,6 +121,43 @@ test('油猴版：交集口径', async () => {
   }
 });
 
+
+test('油猴版：把手重开后仍在，拖拽卡住后下一次按下能自愈', async () => {
+  const env = boot();
+  try {
+    await sleep(400);
+    const host = env.doc.getElementById('baf-userscript-panel');
+    const shadow = host.shadowRoot;
+    const fab = shadow.querySelector('.baf-fab');
+    const win = shadow.querySelector('.baf-window');
+    const fire = (type, x, y, target) => {
+      const ev = new env.window.MouseEvent(type, { bubbles: true, composed: true, clientX: x, clientY: y, button: 0 });
+      (target || env.doc.body).dispatchEvent(ev);
+    };
+
+    fab.click();
+    await sleep(80);
+    assert.ok(shadow.querySelector('.baf-grip'), '第一次打开应有 ⠿ 把手');
+    fire('pointerdown', 900, 600, fab);
+    fire('pointerup', 900, 600, fab);
+    await sleep(40);
+    assert.equal(win.hidden, true, '轻点应关闭面板');
+
+    fab.click();
+    await sleep(80);
+    assert.ok(shadow.querySelector('.baf-grip'), '重开后面板头部重建，把手必须补回来');
+
+    // 模拟在窗口外松手：只发 pointerdown/move，不发 pointerup
+    fire('pointerdown', 900, 600, fab);
+    fire('pointermove', 860, 560);
+    fire('pointerdown', 900, 600, fab); // 下一次按下应自愈并重新开始
+    fire('pointerup', 900, 600, fab);
+    await sleep(40);
+    assert.equal(win.hidden, true, '自愈后的一次轻点应立刻生效');
+  } finally {
+    env.window.close();
+  }
+});
 test('油猴版：面板复用扩展弹窗（同样的结构与版本号）', async () => {
   const env = boot();
   try {
@@ -156,7 +193,7 @@ test('油猴版：面板复用扩展弹窗（同样的结构与版本号）', as
 
     // 悬浮球：蓝底图标 + 可拖动
     const fab = shadow.querySelector('.baf-fab');
-    assert.match(fab.style.backgroundImage, /^url\("data:image\/png;base64,/, '悬浮球应使用图标作背景');
+    assert.match(fab.style.backgroundImage, /^url\("data:image\/(png|webp);base64,/, '悬浮球应使用图标作背景');
     assert.equal(fab.dataset.bafDrag, '1', '悬浮球应挂上拖拽标记');
     const fireFab = (type, x, y, target) => {
       // composed: true 模拟真实指针事件能穿过 shadow 边界
