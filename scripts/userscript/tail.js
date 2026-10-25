@@ -58,6 +58,10 @@
     '  border: 0; cursor: pointer; background: #4d6bfe; color: #fff; box-shadow: 0 6px 18px rgba(77,107,254,.45);',
     '  display: flex; align-items: center; justify-content: center; z-index: 2147483000; transition: transform .15s; }',
     '.baf-fab:hover { transform: translateY(-2px); }',
+    // 面板可拖动：顶栏作为拖拽把手
+    '.baf-window .baf-popup header { cursor: grab; user-select: none; touch-action: none; }',
+    '.baf-window.is-dragging .baf-popup header { cursor: grabbing; }',
+    '.baf-window.is-dragging { box-shadow: 0 24px 60px rgba(15,23,42,.28); }',
   ].join('\n');
 
   const FAB_SVG = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none">'
@@ -112,6 +116,73 @@
     };
   }
 
+  const PANEL_POS_KEY = 'baf.panel.pos.v1';
+
+  function clampPanelPos(left, top) {
+    const rect = panelWindow && panelWindow.getBoundingClientRect ? panelWindow.getBoundingClientRect() : null;
+    const width = Math.round((rect && rect.width) || 328);
+    const height = Math.round((rect && rect.height) || 420);
+    const margin = 8;
+    const maxLeft = Math.max(margin, window.innerWidth - width - margin);
+    const maxTop = Math.max(margin, window.innerHeight - height - margin);
+    return {
+      left: Math.min(Math.max(margin, left), maxLeft),
+      top: Math.min(Math.max(margin, top), maxTop),
+    };
+  }
+
+  function movePanel(left, top) {
+    const pos = clampPanelPos(left, top);
+    panelWindow.style.left = pos.left + 'px';
+    panelWindow.style.top = pos.top + 'px';
+    panelWindow.style.right = 'auto';
+    panelWindow.style.bottom = 'auto';
+    return pos;
+  }
+
+  function applyPanelPos() {
+    const saved = storeGet(PANEL_POS_KEY, null);
+    if (!saved || typeof saved.left !== 'number' || typeof saved.top !== 'number') return;
+    movePanel(saved.left, saved.top);
+  }
+
+  /** 顶栏拖动整个面板，位置记在 GM 存储里，下次打开还在原处。 */
+  function makePanelDraggable() {
+    const handle = panelWindow.querySelector('.baf-popup header');
+    if (!handle || handle.dataset.bafDrag === '1') return;
+    handle.dataset.bafDrag = '1';
+
+    handle.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      const rect = panelWindow.getBoundingClientRect();
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const startLeft = rect.left;
+      const startTop = rect.top;
+
+      panelWindow.classList.add('is-dragging');
+      movePanel(startLeft, startTop);
+
+      const onMove = (e) => {
+        movePanel(startLeft + (e.clientX - startX), startTop + (e.clientY - startY));
+      };
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onUp);
+        panelWindow.classList.remove('is-dragging');
+        const box = panelWindow.getBoundingClientRect();
+        storeSet(PANEL_POS_KEY, { left: Math.round(box.left), top: Math.round(box.top) });
+      };
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+      event.preventDefault();
+      event.stopPropagation();
+    });
+  }
+
   function refreshOpenPanel() {
     if (!panelOpen || !panelWindow) return;
     try {
@@ -120,6 +191,8 @@
       const chromeShim = chromeForPanel();
       const docShim = { getElementById: (id) => panelWindow.querySelector('#' + id) };
       bafPopupMain(chromeShim, docShim, { chrome: chromeShim });
+      makePanelDraggable();
+      applyPanelPos();
     } catch (error) {
       console.warn('[大肥鱼过滤器] 面板渲染失败', error);
     }
@@ -128,6 +201,12 @@
   function setupPanel() {
     try {
       ensureHost();
+      window.addEventListener('resize', () => {
+        if (!panelWindow) return;
+        if (!panelWindow.style.left && !panelWindow.style.top) return;
+        const box = panelWindow.getBoundingClientRect();
+        movePanel(box.left, box.top);
+      });
       if (typeof GM_registerMenuCommand === 'function') {
         GM_registerMenuCommand('打开设置面板', () => { if (!panelOpen) togglePanel(); });
         GM_registerMenuCommand('切换规则一（昵称含鱼）', () => {

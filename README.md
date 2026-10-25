@@ -4,13 +4,13 @@
 
 **——让你的 B站评论区充满卖萌的大肥鱼！**
 
-![版本](https://img.shields.io/badge/version-v1.02-4d6bfe) ![许可](https://img.shields.io/badge/license-MIT-green) ![平台](https://img.shields.io/badge/Chrome%20%7C%20Edge%20%7C%20Tampermonkey-ok-4d6bfe)
+![版本](https://img.shields.io/badge/version-v1.03-4d6bfe) ![许可](https://img.shields.io/badge/license-MIT-green) ![平台](https://img.shields.io/badge/Chrome%20%7C%20Edge%20%7C%20Tampermonkey-ok-4d6bfe)
 
 </div>
 
 按昵称和正文挑评论的 B 站评论区过滤器。三条规则各自可以设挡，也能组合成并集或交集；命中的留下，其余隐藏。扩展与油猴脚本共用同一套规则和同一个设置面板。
 
-![设置面板](docs/popup-v1.02.png)
+![设置面板](docs/popup-v1.03.png)
 
 ## 功能
 
@@ -22,7 +22,7 @@
 
 ## 实际效果
 
-![规则实测](docs/demo-v1.02.png)
+![规则实测](docs/demo-v1.03.png)
 
 ## 三条规则
 
@@ -47,7 +47,7 @@
 
 ### Chrome / Edge 扩展
 
-1. 下载 [`bilibili-fish-filter-v1.02.zip`](https://github.com/deepseekmaid/bilibili-fish-filter/releases/latest) 并解压；
+1. 下载 [`bilibili-fish-filter-v1.03.zip`](https://github.com/deepseekmaid/bilibili-fish-filter/releases/latest) 并解压；
 2. 打开 `chrome://extensions`（Edge 为 `edge://extensions`），右上角开启「开发者模式」；
 3. 点「加载已解压的扩展程序」，选择解压出的 `bilibili-fish-filter/` 目录；
 4. 刷新已打开的 B 站页面。
@@ -80,13 +80,13 @@
 2. 点 Tampermonkey 图标 → **管理面板**；
 3. 切到 **实用工具 / Utilities** 标签页；
 4. 在 **Import from URL / 从 URL 安装** 里粘贴 URL，点「安装」；
-5. 安装页里确认名称是「B站大肥鱼过滤器（油猴版）」、版本是 `1.0.2`，点「安装」。
+5. 安装页里确认名称是「B站大肥鱼过滤器（油猴版）」、版本是 `1.0.3`，点「安装」。
 
 **方式 C**：完全离线也能装：在脚本链接页面全选复制代码 → 管理面板 → 点「+」新建脚本 → 全选删除 → 粘贴 → `Ctrl+S` 保存。
 
 #### 第 3 步 · 确认生效
 
-1. 点 Tampermonkey 图标 → 「管理面板」，列表里应出现 **B站大肥鱼过滤器（油猴版）**，版本 `1.0.2`，状态为已启用；
+1. 点 Tampermonkey 图标 → 「管理面板」，列表里应出现 **B站大肥鱼过滤器（油猴版）**，版本 `1.0.3`，状态为已启用；
 2. 打开任意 B 站视频页并刷新；
 3. 页面**右下角**出现一个蓝色圆形按钮，点开就是设置面板。
 
@@ -100,6 +100,7 @@
 ## 使用## 使用
 
 - 点工具栏图标（扩展）或右下角按钮（油猴）打开面板，任何改动即时生效，不需要刷新；
+- 油猴版面板可以**拖动**：按住面板顶栏（图标和标题那一条）拖到任意位置，位置会记住，下次打开还在原处；
 - 面板底部显示当前页「保留 N 条 / 共 M 条」；
 - 主评论被隐藏时，整个楼层（含「共 N 条回复」）会一起收起，该楼下的楼中楼不会再展开。
 
@@ -148,7 +149,7 @@ npm run version:check  # 校验 manifest / package / 油猴 @version 三处一�
 
 ## 版本命名
 
-发布名是 **v1.02**，但 `manifest.json` 里写的是 `"version": "1.0.2"`：Chrome 规定版本号「非零整数不能以 0 开头」，`1.02` 会被判非法、扩展直接加载失败。所以内部用合法写法，再用 `"version_name": "v1.02"` 让扩展页和弹窗显示 **v1.02**；GitHub 的 tag 与 Release 也用 `v1.02`。
+发布名是 **v1.03**，但 `manifest.json` 里写的是 `"version": "1.0.3"`：Chrome 规定版本号「非零整数不能以 0 开头」，`1.02` 会被判非法、扩展直接加载失败。所以内部用合法写法，再用 `"version_name": "v1.02"` 让扩展页和弹窗显示 **v1.03**；GitHub 的 tag 与 Release 也用 `v1.03`。
 
 ## 许可
 

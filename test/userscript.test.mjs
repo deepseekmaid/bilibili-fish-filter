@@ -137,6 +137,21 @@ test('油猴版：面板复用扩展弹窗（同样的结构与版本号）', as
     assert.equal(shadow.querySelector('#ver').textContent, MANIFEST.version_name, '版本号应与 manifest.version_name 一致');
     assert.match(shadow.querySelector('#count').textContent, /保留 \d+ 条 \/ 共 \d+ 条/);
     assert.ok(shadow.querySelector('.baf-popup'), '应套用弹窗样式容器');
+
+    // 顶栏可拖动，位置写回 GM 存储
+    const header = shadow.querySelector('.baf-popup header');
+    assert.equal(header.dataset.bafDrag, '1', '顶栏应挂上拖拽把手标记');
+    const win = shadow.querySelector('.baf-window');
+    const fire = (type, x, y) => {
+      const ev = new env.window.MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 });
+      (type === 'pointerdown' ? header : env.window).dispatchEvent(ev);
+    };
+    fire('pointerdown', 500, 400);
+    fire('pointermove', 460, 380);
+    fire('pointerup', 460, 380);
+    assert.ok(win.style.left && win.style.top, '拖动后应变成 left/top 定位');
+    const pos = env.store['baf.panel.pos.v1'];
+    assert.ok(pos && typeof pos.left === 'number' && typeof pos.top === 'number', '位置应写入 GM 存储');
   } finally {
     env.window.close();
   }
