@@ -160,15 +160,20 @@
   const ROOTS = new Set();
   const STATS = { total: 0, visible: 0 };
 
+  /** 已挂上的观察器：断开时要用，否则 SPA 换页会留下对已卸载 shadow 根的引用。 */
+  const observers = new Map();
+
   function observe(root) {
     if (!root || observed.has(root) || typeof MutationObserver !== 'function') return;
     try {
-      new MutationObserver(schedule).observe(root, {
+      const observer = new MutationObserver(schedule);
+      observer.observe(root, {
         childList: true,
         subtree: true,
         characterData: true,
       });
       observed.add(root);
+      observers.set(root, observer);
     } catch {
       /* ignore */
     }
@@ -191,6 +196,14 @@
     for (const host of [...ROOTS]) {
       if (!host.isConnected) {
         ROOTS.delete(host);
+        // 评论区被页面卸载了：断开它的观察器，避免一直持有已脱离的 shadow 根
+        const shadow = host.shadowRoot;
+        const observer = shadow ? observers.get(shadow) : null;
+        if (observer) {
+          try { observer.disconnect(); } catch { /* ignore */ }
+          observers.delete(shadow);
+          observed.delete(shadow);
+        }
         changed = true;
         continue;
       }
@@ -801,7 +814,21 @@
     const loop = () => {
       if (!AUTO.running) return;
 
-      const result = autoTick();
+      let result;
+      try {
+        result = autoTick();
+      } catch (error) {
+        // 任何一次异常都不能让循环「活着但不再跑」：那会导致自动加载永久卡住，
+        // 而且 maybeAutoLoad 看到 running=true 也不会再启动。
+        console.warn('[大肥鱼过滤器] 自动加载出错，5 秒后重试', error);
+        AUTO.running = false;
+        if (AUTO.timer) clearTimeout(AUTO.timer);
+        AUTO.timer = null;
+        AUTO.gaveUp = false;
+        AUTO.cooldown = Date.now() + 5000;
+        schedule();
+        return;
+      }
       const pending = AUTO.pending;
       AUTO.pending = null;
 
@@ -1216,6 +1243,8 @@ if (globalThis.chrome?.storage?.sync) {
   let panelShadow = null;
   let panelWindow = null;
   let panelOpen = false;
+  let panelDragging = false;
+  let fabDragging = false;
 
   function ensureHost() {
     if (panelHost) return;
@@ -1344,6 +1373,7 @@ if (globalThis.chrome?.storage?.sync) {
 
     panelWindow.addEventListener(DRAG_DOWN, (event) => {
       if (event.button !== undefined && event.button !== 0) return;
+      if (panelDragging) return;
       if (isInteractive(event.target)) return;
 
       // 拖动期间不要选中页面文字
@@ -1366,14 +1396,19 @@ if (globalThis.chrome?.storage?.sync) {
         );
         applyPanelOffset(next.x, next.y);
       };
+      panelDragging = true;
       const finish = () => {
         document.removeEventListener(DRAG_MOVE, onMove, true);
         document.removeEventListener(DRAG_UP, finish, true);
         document.removeEventListener('pointercancel', finish, true);
+        document.removeEventListener('blur', finish, true);
         document.documentElement.style.userSelect = prevUserSelect;
         panelWindow.classList.remove('is-dragging');
+        panelDragging = false;
         storeSet(PANEL_POS_KEY, { x: panelOffset.x, y: panelOffset.y });
       };
+      // 窗口失焦时 pointerup 可能收不到，直接收尾，避免卡在拖拽态
+      document.addEventListener('blur', finish, true);
 
       // 用捕获阶段监听：页面自己的 pointermove 处理不会把事件吃掉
       document.addEventListener(DRAG_MOVE, onMove, true);
@@ -1428,6 +1463,7 @@ if (globalThis.chrome?.storage?.sync) {
 
     fabEl.addEventListener(DRAG_DOWN, (event) => {
       if (event.button !== undefined && event.button !== 0) return;
+      if (fabDragging) return;
       event.preventDefault();
 
       const base = fabBase();
@@ -1445,10 +1481,13 @@ if (globalThis.chrome?.storage?.sync) {
         const next = clampFabOffset(start.x + dx, start.y + dy, base);
         applyFabOffset(next.x, next.y);
       };
+      fabDragging = true;
       const finish = (upEvent) => {
         document.removeEventListener(DRAG_MOVE, onMove, true);
         document.removeEventListener(DRAG_UP, finish, true);
         document.removeEventListener('pointercancel', finish, true);
+        document.removeEventListener('blur', finish, true);
+        fabDragging = false;
         fabEl.classList.remove('is-dragging');
         if (moved) {
           storeSet(FAB_POS_KEY, fabOffset);
@@ -1466,6 +1505,7 @@ if (globalThis.chrome?.storage?.sync) {
       document.addEventListener(DRAG_MOVE, onMove, true);
       document.addEventListener(DRAG_UP, finish, true);
       document.addEventListener('pointercancel', finish, true);
+      document.addEventListener('blur', finish, true);
     });
 
     fabEl.addEventListener('click', (event) => {
@@ -1493,10 +1533,16 @@ if (globalThis.chrome?.storage?.sync) {
     try {
       ensureHost();
       window.addEventListener('resize', () => {
-        if (!panelWindow) return;
-        const base = panelBase();
-        const pos = clampOffset(panelOffset.x, panelOffset.y, base.left, base.top);
-        applyPanelOffset(pos.x, pos.y);
+        if (panelWindow) {
+          const base = panelBase();
+          const pos = clampOffset(panelOffset.x, panelOffset.y, base.left, base.top);
+          applyPanelOffset(pos.x, pos.y);
+        }
+        if (fabEl) {
+          const fabBaseRect = fabBase();
+          const fabPos = clampFabOffset(fabOffset.x, fabOffset.y, fabBaseRect);
+          applyFabOffset(fabPos.x, fabPos.y);
+        }
       });
       if (typeof GM_registerMenuCommand === 'function') {
         GM_registerMenuCommand('打开设置面板', () => { if (!panelOpen) togglePanel(); });

@@ -174,6 +174,9 @@ test('油猴版：面板复用扩展弹窗（同样的结构与版本号）', as
     fireFab('pointerdown', 900, 600, fab);
     fireFab('pointerup', 900, 600, fab);
     assert.equal(win.hidden, true, '轻点悬浮球应立即收起面板');
+
+    // 注：jsdom 的 getBoundingClientRect 恒为 0，无法验证「缩窗后夹紧」，
+    // 这部分改由真实 Chrome 的 harness 覆盖（预置一个超出视口的坐标，检查加载时被夹紧）。
   } finally {
     env.window.close();
   }

@@ -76,6 +76,8 @@
   let panelShadow = null;
   let panelWindow = null;
   let panelOpen = false;
+  let panelDragging = false;
+  let fabDragging = false;
 
   function ensureHost() {
     if (panelHost) return;
@@ -204,6 +206,7 @@
 
     panelWindow.addEventListener(DRAG_DOWN, (event) => {
       if (event.button !== undefined && event.button !== 0) return;
+      if (panelDragging) return;
       if (isInteractive(event.target)) return;
 
       // 拖动期间不要选中页面文字
@@ -226,14 +229,19 @@
         );
         applyPanelOffset(next.x, next.y);
       };
+      panelDragging = true;
       const finish = () => {
         document.removeEventListener(DRAG_MOVE, onMove, true);
         document.removeEventListener(DRAG_UP, finish, true);
         document.removeEventListener('pointercancel', finish, true);
+        document.removeEventListener('blur', finish, true);
         document.documentElement.style.userSelect = prevUserSelect;
         panelWindow.classList.remove('is-dragging');
+        panelDragging = false;
         storeSet(PANEL_POS_KEY, { x: panelOffset.x, y: panelOffset.y });
       };
+      // 窗口失焦时 pointerup 可能收不到，直接收尾，避免卡在拖拽态
+      document.addEventListener('blur', finish, true);
 
       // 用捕获阶段监听：页面自己的 pointermove 处理不会把事件吃掉
       document.addEventListener(DRAG_MOVE, onMove, true);
@@ -288,6 +296,7 @@
 
     fabEl.addEventListener(DRAG_DOWN, (event) => {
       if (event.button !== undefined && event.button !== 0) return;
+      if (fabDragging) return;
       event.preventDefault();
 
       const base = fabBase();
@@ -305,10 +314,13 @@
         const next = clampFabOffset(start.x + dx, start.y + dy, base);
         applyFabOffset(next.x, next.y);
       };
+      fabDragging = true;
       const finish = (upEvent) => {
         document.removeEventListener(DRAG_MOVE, onMove, true);
         document.removeEventListener(DRAG_UP, finish, true);
         document.removeEventListener('pointercancel', finish, true);
+        document.removeEventListener('blur', finish, true);
+        fabDragging = false;
         fabEl.classList.remove('is-dragging');
         if (moved) {
           storeSet(FAB_POS_KEY, fabOffset);
@@ -326,6 +338,7 @@
       document.addEventListener(DRAG_MOVE, onMove, true);
       document.addEventListener(DRAG_UP, finish, true);
       document.addEventListener('pointercancel', finish, true);
+      document.addEventListener('blur', finish, true);
     });
 
     fabEl.addEventListener('click', (event) => {
@@ -353,10 +366,16 @@
     try {
       ensureHost();
       window.addEventListener('resize', () => {
-        if (!panelWindow) return;
-        const base = panelBase();
-        const pos = clampOffset(panelOffset.x, panelOffset.y, base.left, base.top);
-        applyPanelOffset(pos.x, pos.y);
+        if (panelWindow) {
+          const base = panelBase();
+          const pos = clampOffset(panelOffset.x, panelOffset.y, base.left, base.top);
+          applyPanelOffset(pos.x, pos.y);
+        }
+        if (fabEl) {
+          const fabBaseRect = fabBase();
+          const fabPos = clampFabOffset(fabOffset.x, fabOffset.y, fabBaseRect);
+          applyFabOffset(fabPos.x, fabPos.y);
+        }
       });
       if (typeof GM_registerMenuCommand === 'function') {
         GM_registerMenuCommand('打开设置面板', () => { if (!panelOpen) togglePanel(); });

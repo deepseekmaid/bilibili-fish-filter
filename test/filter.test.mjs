@@ -238,6 +238,35 @@ test('三条规则都关：完全不过滤', async () => {
   }
 });
 
+
+test('自动加载循环遇到异常不会永久卡死', async () => {
+  const dom = new JSDOM('<!doctype html><html><body></body></html>', {
+    url: 'https://www.bilibili.com/video/BV1xx',
+    pretendToBeVisual: true,
+    runScripts: 'outside-only',
+  });
+  const { window } = dom;
+  const doc = window.document;
+  window.chrome = { storage: { sync: { get: (d, cb) => setTimeout(() => cb(d), 0) }, onChanged: { addListener() {} } } };
+
+  const host = doc.createElement('bili-comments');
+  host.attachShadow({ mode: 'open' });
+  doc.body.appendChild(host);
+  // 让 kickLoad 读取组件状态时抛错，模拟 B 站改版或异常对象
+  Object.defineProperty(host, 'showSpinner', {
+    get() { throw new Error('boom'); },
+  });
+
+  try {
+    window.eval(SOURCE);
+    await sleep(900);
+    const state = window.__bafAuto.state;
+    assert.equal(state.running, false, '抛错后不应停在 running=true 的僵尸状态');
+    assert.ok(state.cooldown > Date.now(), '应设置冷却，稍后还能重试');
+  } finally {
+    window.close();
+  }
+});
 test('热切换：关掉一个模式只影响它自己那一份', async () => {
   const env = boot({ modeAt: true, modeFish: true });
   try {

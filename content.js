@@ -189,15 +189,20 @@
   const ROOTS = new Set();
   const STATS = { total: 0, visible: 0 };
 
+  /** 已挂上的观察器：断开时要用，否则 SPA 换页会留下对已卸载 shadow 根的引用。 */
+  const observers = new Map();
+
   function observe(root) {
     if (!root || observed.has(root) || typeof MutationObserver !== 'function') return;
     try {
-      new MutationObserver(schedule).observe(root, {
+      const observer = new MutationObserver(schedule);
+      observer.observe(root, {
         childList: true,
         subtree: true,
         characterData: true,
       });
       observed.add(root);
+      observers.set(root, observer);
     } catch {
       /* ignore */
     }
@@ -220,6 +225,14 @@
     for (const host of [...ROOTS]) {
       if (!host.isConnected) {
         ROOTS.delete(host);
+        // 评论区被页面卸载了：断开它的观察器，避免一直持有已脱离的 shadow 根
+        const shadow = host.shadowRoot;
+        const observer = shadow ? observers.get(shadow) : null;
+        if (observer) {
+          try { observer.disconnect(); } catch { /* ignore */ }
+          observers.delete(shadow);
+          observed.delete(shadow);
+        }
         changed = true;
         continue;
       }
@@ -830,7 +843,21 @@
     const loop = () => {
       if (!AUTO.running) return;
 
-      const result = autoTick();
+      let result;
+      try {
+        result = autoTick();
+      } catch (error) {
+        // 任何一次异常都不能让循环「活着但不再跑」：那会导致自动加载永久卡住，
+        // 而且 maybeAutoLoad 看到 running=true 也不会再启动。
+        console.warn('[大肥鱼过滤器] 自动加载出错，5 秒后重试', error);
+        AUTO.running = false;
+        if (AUTO.timer) clearTimeout(AUTO.timer);
+        AUTO.timer = null;
+        AUTO.gaveUp = false;
+        AUTO.cooldown = Date.now() + 5000;
+        schedule();
+        return;
+      }
       const pending = AUTO.pending;
       AUTO.pending = null;
 
