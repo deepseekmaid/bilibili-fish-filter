@@ -14,6 +14,7 @@
     "test": "node test/filter.test.mjs && node test/late-shadow.test.mjs && node test/popup.test.mjs && node test/userscript.test.mjs",
     "build": "node scripts/build.mjs && node scripts/build-userscript.mjs",
     "version:check": "node scripts/check-version.mjs",
+    "version:fix": "node scripts/set-version.mjs --fix",
     "verify": "npm test && npm run build && npm run version:check"
   },
   "devDependencies": {

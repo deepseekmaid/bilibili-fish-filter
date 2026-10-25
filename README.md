@@ -128,7 +128,13 @@ npm run build          # 生成 dist/ 下的 zip 与 .user.js
 npm run version:check  # 校验 manifest / package / 油猴 @version 三处一致
 ```
 
-版本号只改一处：`manifest.json` 的 `version`。构建时油猴脚本的 `@version` 自动跟随，`version:check` 与 CI 会拦住不一致。
+### 版本号与发布
+
+- **开发 / 修复期间**：`npm run version:fix`，显示名变成 `v1.03-fix`，数字版本不变（Chrome 只认数字版本）；
+- **正式发布**：`node scripts/set-version.mjs 1.0.4`，数字版本与显示名一起切成 `v1.04`；
+- 发布时**源码、构建产物、tag 三者要一起更新**：先 `npm run build` 提交源码与 `dist/`，再打 `vX.YZ` 标签并推送，最后用同一份构建产物更新 Release 附件——zip 里的 `content.js` 必须就是仓库里那份。
+
+`version:check` 会校验 `manifest.json` / `package.json` / 油猴 `@version` 三处一致，CI 里也会跑。
 
 ### 目录结构
 
