@@ -54,13 +54,50 @@
 
 也可以 `git clone` 后直接加载仓库根目录。
 
-### Tampermonkey / Violentmonkey 油猴脚本
+### 油猴脚本（Tampermonkey / Violentmonkey）
 
-1. 安装 [Tampermonkey](https://www.tampermonkey.net/)；
-2. 打开 [`bilibili-fish-filter.user.js`](https://github.com/deepseekmaid/bilibili-fish-filter/raw/main/dist/bilibili-fish-filter.user.js)，在安装页点「安装」；
-3. 刷新 B 站页面，右下角会出现蓝色圆形按钮，点开就是设置面板。
+油猴脚本不需要打包、不需要开开发者模式，装好脚本管理器即可。整个过程三步。
 
-## 使用
+#### 第 1 步 · 装脚本管理器
+
+| 浏览器 | 安装方式 |
+| --- | --- |
+| Chrome | [Chrome 应用商店 · Tampermonkey](https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo) |
+| Edge | [Edge 加载项 · Tampermonkey](https://microsoftedge.microsoft.com/addons/detail/tampermonkey/iikmkjmpaadaobahmlepeloendndfphd) |
+| Firefox | [Firefox 附加组件 · Tampermonkey](https://addons.mozilla.org/firefox/addon/tampermonkey/) |
+
+装好后浏览器右上角会出现 Tampermonkey 图标（橙色方块），没看到就点拼图图标把它固定出来。
+
+#### 第 2 步 · 安装脚本
+
+**方式 A（推荐）**：点这个链接，Tampermonkey 会自动打开安装页，点「安装」：
+
+> https://github.com/deepseekmaid/bilibili-fish-filter/raw/main/dist/bilibili-fish-filter.user.js
+
+**方式 B**：如果点开只是一页代码、没有安装按钮（浏览器把 `.user.js` 当普通文本打开了），用这个兜底流程：
+
+1. 复制地址栏里的完整 URL；
+2. 点 Tampermonkey 图标 → **管理面板**；
+3. 切到 **实用工具 / Utilities** 标签页；
+4. 在 **Import from URL / 从 URL 安装** 里粘贴 URL，点「安装」；
+5. 安装页里确认名称是「B站大肥鱼过滤器（油猴版）」、版本是 `1.0.2`，点「安装」。
+
+**方式 C**：完全离线也能装：在脚本链接页面全选复制代码 → 管理面板 → 点「+」新建脚本 → 全选删除 → 粘贴 → `Ctrl+S` 保存。
+
+#### 第 3 步 · 确认生效
+
+1. 点 Tampermonkey 图标 → 「管理面板」，列表里应出现 **B站大肥鱼过滤器（油猴版）**，版本 `1.0.2`，状态为已启用；
+2. 打开任意 B 站视频页并刷新；
+3. 页面**右下角**出现一个蓝色圆形按钮，点开就是设置面板。
+
+看不到按钮时依次检查：脚本是否被禁用、当前标签页是不是 `www.bilibili.com` 开头的地址、浏览器是否在无痕窗口（无痕默认不运行脚本）。
+
+#### 更新脚本
+
+- **手动**：重新点一次上面的安装链接，Tampermonkey 会提示有新版本并覆盖安装；也可以在管理面板点「检查更新」。
+- **自动**：脚本里已写了 `@updateURL`，Tampermonkey 默认每天检查一次并自动升级到新版本。不想要自动更新的话，在管理面板打开本脚本的「设置」，把「检查更新」关掉即可。
+
+## 使用## 使用
 
 - 点工具栏图标（扩展）或右下角按钮（油猴）打开面板，任何改动即时生效，不需要刷新；
 - 面板底部显示当前页「保留 N 条 / 共 M 条」；
