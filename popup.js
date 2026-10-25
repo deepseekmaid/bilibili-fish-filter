@@ -107,7 +107,12 @@ if (globalThis.chrome?.storage?.sync) {
     auto.checked = value.autoLoad === true;
     fast.checked = value.fastMode === true;
     combine = value.combine === 'intersect' ? 'intersect' : 'union';
-    atMode = value.atMode === 'contains' || value.atMode === 'startsWith' ? value.atMode : 'off';
+    // 旧版本（≤1.6）存的是布尔 modeAt；content.js 会把它迁移成「包含 @」，面板要跟着显示，否则会与真实过滤不一致
+    atMode = value.atMode === 'contains' || value.atMode === 'startsWith'
+      ? value.atMode
+      : value.modeAt === true
+        ? 'contains'
+        : 'off';
     masterMode = value.masterMode === 'contains' || value.masterMode === 'off' ? value.masterMode : 'startsWith';
     paint();
     readCount();

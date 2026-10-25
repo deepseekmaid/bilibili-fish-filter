@@ -20,7 +20,6 @@
 
   const FISH_CHARS = ['鱼', '魚'];
   const HAS_AT = /[@＠]/;
-  const REPLY_HEAD = /^\s*回复\s*[@＠]/;
 
   const COMMENT_SEL = 'bili-comment-renderer, bili-comment-reply-renderer';
   // 一条「楼层」：主评论 + 楼中楼 + 底部的「共 N 条回复」折叠条 + 分割线都在它里面。
@@ -219,9 +218,17 @@
       changed = true;
     }
     for (const host of [...ROOTS]) {
-      if (host.isConnected) continue;
-      ROOTS.delete(host);
-      changed = true;
+      if (!host.isConnected) {
+        ROOTS.delete(host);
+        changed = true;
+        continue;
+      }
+      // 自定义元素可能先挂进 DOM、后挂 shadowRoot：每次复查，补上观察器
+      const shadow = host.shadowRoot;
+      if (shadow && !observed.has(shadow)) {
+        observe(shadow);
+        changed = true;
+      }
     }
     return changed;
   }
@@ -623,12 +630,19 @@
     }
     if (bottom <= y + 8) return false;
 
+    const rootEl = document.documentElement;
+    const prevBehavior = rootEl.style.scrollBehavior;
     try {
+      // 页面若开了 scroll-behavior: smooth，恢复位置会变成一段可见的动画
+      rootEl.style.scrollBehavior = 'auto';
       window.scrollTo(0, bottom);
       window.dispatchEvent(new Event('scroll'));
       window.scrollTo(0, y);
+      if (Math.abs((window.scrollY || 0) - y) > 1) window.scrollTo(0, y);
     } catch {
       return false;
+    } finally {
+      rootEl.style.scrollBehavior = prevBehavior;
     }
 
     AUTO.lastPulse = now;

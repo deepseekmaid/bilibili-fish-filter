@@ -7,6 +7,7 @@ import { JSDOM } from 'jsdom';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE = readFileSync(join(root, 'dist/bilibili-fish-filter.user.js'), 'utf8');
+const MANIFEST = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const state = (el) => (el.style.display === 'none' ? 'hide' : 'show');
@@ -133,7 +134,7 @@ test('油猴版：面板复用扩展弹窗（同样的结构与版本号）', as
     for (const id of ['combineSeg', 'atSeg', 'masterSeg', 'modeFish', 'autoLoad', 'fastMode', 'ver']) {
       assert.ok(shadow.querySelector('#' + id), '面板里应有 #' + id);
     }
-    assert.equal(shadow.querySelector('#ver').textContent, 'v1.01', '版本号应显示 v1.01');
+    assert.equal(shadow.querySelector('#ver').textContent, MANIFEST.version_name, '版本号应与 manifest.version_name 一致');
     assert.match(shadow.querySelector('#count').textContent, /保留 \d+ 条 \/ 共 \d+ 条/);
     assert.ok(shadow.querySelector('.baf-popup'), '应套用弹窗样式容器');
   } finally {

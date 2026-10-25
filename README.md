@@ -1,12 +1,12 @@
 # B站大肥鱼过滤器
 
-![版本](https://img.shields.io/badge/version-v1.01-4d6bfe) ![许可](https://img.shields.io/badge/license-MIT-green) ![平台](https://img.shields.io/badge/Chrome%20%7C%20Edge%20%7C%20Tampermonkey-ok-4d6bfe)
+![版本](https://img.shields.io/badge/version-v1.02-4d6bfe) ![许可](https://img.shields.io/badge/license-MIT-green) ![平台](https://img.shields.io/badge/Chrome%20%7C%20Edge%20%7C%20Tampermonkey-ok-4d6bfe)
 
 给 B 站评论区做**白名单过滤**的小工具：命中的评论留下，不命中的隐藏。
 
 不看广告、不举报、不拉黑，只决定**你自己的浏览器**里显示哪些评论。扩展与油猴脚本共用同一套规则和同一个设置面板。
 
-![设置面板](docs/popup-v1.01.png)
+![设置面板](docs/popup-v1.02.png)
 
 ## 三条规则
 
@@ -33,13 +33,13 @@
 
 ## 实际效果
 
-![规则实测](docs/demo-v1.01.png)
+![规则实测](docs/demo-v1.02.png)
 
 ## 安装
 
 ### Chrome / Edge 扩展
 
-1. 下载 [`bilibili-fish-filter-v1.01.zip`](https://github.com/deepseekmaid/bilibili-fish-filter/releases/latest) 并解压；
+1. 下载 [`bilibili-fish-filter-v1.02.zip`](https://github.com/deepseekmaid/bilibili-fish-filter/releases/latest) 并解压；
 2. 打开 `chrome://extensions`（Edge 为 `edge://extensions`），右上角开启「开发者模式」；
 3. 点「加载已解压的扩展程序」，选择解压出来的 `bilibili-fish-filter/` 目录；
 4. 刷新已打开的 B 站页面。
@@ -89,7 +89,7 @@
 
 ```bash
 npm install
-npm test               # 扩展 37 项 + 油猴 5 项断言（跑前自动重建油猴脚本）
+npm test               # 46 项断言：扩展 37 + 后挂载 1 + 面板 3 + 油猴 5（跑前自动重建油猴脚本）
 npm run build          # 生成 dist/ 下的 zip 与 .user.js
 npm run version:check  # 校验 manifest / package / 油猴 @version 三处一致
 ```
@@ -111,6 +111,8 @@ npm run version:check  # 校验 manifest / package / 油猴 @version 三处一�
 │   ├── check-version.mjs         版本一致性校验
 │   └── userscript/tail.js        油猴适配层（GM 存储 + 面板挂载）
 ├── test/filter.test.mjs          扩展侧断言
+├── test/late-shadow.test.mjs     评论区后挂 shadowRoot 的回归
+├── test/popup.test.mjs           面板初始状态断言
 ├── test/userscript.test.mjs      油猴侧断言
 └── .github/workflows/ci.yml      测试 → 构建 → 版本校验
 ```
