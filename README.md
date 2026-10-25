@@ -1,5 +1,7 @@
 # B站大肥鱼过滤器
 
+**——让你的 B站评论区充满卖萌的大肥鱼！**
+
 ![版本](https://img.shields.io/badge/version-v1.02-4d6bfe) ![许可](https://img.shields.io/badge/license-MIT-green) ![平台](https://img.shields.io/badge/Chrome%20%7C%20Edge%20%7C%20Tampermonkey-ok-4d6bfe)
 
 给 B 站评论区做**白名单过滤**的小工具：命中的评论留下，不命中的隐藏。
