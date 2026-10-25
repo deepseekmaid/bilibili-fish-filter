@@ -153,6 +153,21 @@ test('油猴版：面板复用扩展弹窗（同样的结构与版本号）', as
     assert.match(win.style.transform, /translate3d\(/, '拖动后应写入 transform');
     const pos = env.store['baf.panel.pos.v2'];
     assert.ok(pos && typeof pos.x === 'number' && typeof pos.y === 'number', '位移应写入 GM 存储');
+
+    // 悬浮球：蓝底图标 + 可拖动
+    const fab = shadow.querySelector('.baf-fab');
+    assert.match(fab.style.backgroundImage, /^url\("data:image\/png;base64,/, '悬浮球应使用图标作背景');
+    assert.equal(fab.dataset.bafDrag, '1', '悬浮球应挂上拖拽标记');
+    const fireFab = (type, x, y, target) => {
+      const ev = new env.window.MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 });
+      (target || env.doc.body).dispatchEvent(ev);
+    };
+    fireFab('pointerdown', 900, 600, fab);
+    fireFab('pointermove', 820, 540);
+    fireFab('pointerup', 820, 540);
+    assert.match(fab.style.transform, /translate3d\(/, '拖动悬浮球应写入 transform');
+    const fabPos = env.store['baf.fab.pos.v1'];
+    assert.ok(fabPos && typeof fabPos.x === 'number' && typeof fabPos.y === 'number', '悬浮球位移应写入 GM 存储');
   } finally {
     env.window.close();
   }

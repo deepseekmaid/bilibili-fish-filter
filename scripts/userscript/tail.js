@@ -55,9 +55,12 @@
     '.baf-window[hidden] { display: none; }',
     '.baf-window .baf-popup { border-radius: 14px; overflow: hidden; border: 1px solid #e5eaf3; }',
     '.baf-fab { position: fixed; right: 18px; bottom: 18px; width: 46px; height: 46px; border-radius: 50%;',
-    '  border: 0; cursor: pointer; background: #4d6bfe; color: #fff; box-shadow: 0 6px 18px rgba(77,107,254,.45);',
-    '  display: flex; align-items: center; justify-content: center; z-index: 2147483000; transition: transform .15s; }',
-    '.baf-fab:hover { transform: translateY(-2px); }',
+    '  border: 0; padding: 0; cursor: grab; background-color: #4d6bfe; background-size: cover;',
+    '  background-position: center; background-repeat: no-repeat; color: #fff;',
+    '  box-shadow: 0 6px 18px rgba(77,107,254,.45); z-index: 2147483000;',
+    '  touch-action: none; user-select: none; will-change: transform; }',
+    '.baf-fab:hover { box-shadow: 0 10px 24px rgba(77,107,254,.55); }',
+    '.baf-fab.is-dragging { cursor: grabbing; box-shadow: 0 14px 30px rgba(77,107,254,.55); }',
     // 面板可拖动：顶栏作为拖拽把手
     '.baf-window { will-change: transform; }',
     '.baf-window .baf-popup header { cursor: grab; user-select: none; touch-action: none; }',
@@ -67,9 +70,7 @@
     '.baf-window.is-dragging { box-shadow: 0 24px 60px rgba(15,23,42,.28); }',
   ].join('\n');
 
-  const FAB_SVG = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none">'
-    + '<path d="M3 12c3-4 7-6 11-6 3 0 5 1 7 3l-3 3 3 3c-2 2-4 3-7 3-4 0-8-2-11-6z" fill="currentColor"/>'
-    + '<circle cx="16" cy="11" r="1.4" fill="#4d6bfe"/></svg>';
+  let fabEl = null;
 
   let panelHost = null;
   let panelShadow = null;
@@ -84,10 +85,13 @@
     panelShadow.innerHTML = '<style>' + PANEL_CSS + '</style>'
       + '<style>' + PANEL_CHROME_STYLE + '</style>'
       + '<div class="baf-window" hidden></div>'
-      + '<button class="baf-fab" type="button" title="B站大肥鱼过滤器设置">' + FAB_SVG + '</button>';
+      + '<button class="baf-fab" type="button" title="B站大肥鱼过滤器设置（拖动可移动）"></button>';
     document.documentElement.appendChild(panelHost);
     panelWindow = panelShadow.querySelector('.baf-window');
-    panelShadow.querySelector('.baf-fab').addEventListener('click', () => togglePanel());
+    fabEl = panelShadow.querySelector('.baf-fab');
+    fabEl.style.backgroundImage = 'url("' + FAB_ICON + '")';
+    makeFabDraggable();
+    restoreFabOffset();
   }
 
   function togglePanel() {
@@ -153,9 +157,22 @@
 
   function restorePanelOffset() {
     const saved = storeGet(PANEL_POS_KEY, null);
-    if (!saved || typeof saved.x !== 'number' || typeof saved.y !== 'number') return;
+    if (!saved || typeof saved.x !== 'number' || typeof saved.y !== 'number') return false;
     const base = panelBase();
     const pos = clampOffset(saved.x, saved.y, base.left, base.top);
+    applyPanelOffset(pos.x, pos.y);
+    return true;
+  }
+
+  /** 没手动摆过面板时，让它出现在悬浮球上方，右下角对齐。 */
+  function placePanelNearFab() {
+    if (!panelWindow || !fabEl) return;
+    const fabRect = fabEl.getBoundingClientRect();
+    const panelRect = panelWindow.getBoundingClientRect();
+    const base = panelBase();
+    const targetLeft = fabRect.right - panelRect.width;
+    const targetTop = fabRect.top - panelRect.height - 12;
+    const pos = clampOffset(targetLeft - base.left, targetTop - base.top, base.left, base.top);
     applyPanelOffset(pos.x, pos.y);
   }
 
@@ -225,6 +242,97 @@
     });
   }
 
+  const FAB_POS_KEY = 'baf.fab.pos.v1';
+  let fabOffset = { x: 0, y: 0 };
+  let fabDragEndedAt = 0;
+
+  function applyFabOffset(x, y) {
+    fabOffset = { x: Math.round(x), y: Math.round(y) };
+    fabEl.style.transform = 'translate3d(' + fabOffset.x + 'px,' + fabOffset.y + 'px,0)';
+  }
+
+  function fabBase() {
+    const rect = fabEl.getBoundingClientRect();
+    return {
+      left: rect.left - fabOffset.x,
+      top: rect.top - fabOffset.y,
+      width: rect.width,
+      height: rect.height,
+    };
+  }
+
+  function clampFabOffset(x, y, base) {
+    const size = base.width || 46;
+    const margin = 8;
+    const minX = margin - base.left;
+    const maxX = Math.max(minX, window.innerWidth - size - margin - base.left);
+    const minY = margin - base.top;
+    const maxY = Math.max(minY, window.innerHeight - size - margin - base.top);
+    return {
+      x: Math.min(Math.max(minX, x), maxX),
+      y: Math.min(Math.max(minY, y), maxY),
+    };
+  }
+
+  function restoreFabOffset() {
+    const saved = storeGet(FAB_POS_KEY, null);
+    if (!saved || typeof saved.x !== 'number' || typeof saved.y !== 'number') return;
+    const base = fabBase();
+    const pos = clampFabOffset(saved.x, saved.y, base);
+    applyFabOffset(pos.x, pos.y);
+  }
+
+  /** 悬浮球可拖动：拖动只移动它，轻点才开合面板。 */
+  function makeFabDraggable() {
+    if (!fabEl || fabEl.dataset.bafDrag === '1') return;
+    fabEl.dataset.bafDrag = '1';
+
+    fabEl.addEventListener(DRAG_DOWN, (event) => {
+      if (event.button !== undefined && event.button !== 0) return;
+      event.preventDefault();
+
+      const base = fabBase();
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const start = { x: fabOffset.x, y: fabOffset.y };
+      let moved = false;
+
+      const onMove = (moveEvent) => {
+        const dx = moveEvent.clientX - startX;
+        const dy = moveEvent.clientY - startY;
+        if (!moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+        moved = true;
+        fabEl.classList.add('is-dragging');
+        const next = clampFabOffset(start.x + dx, start.y + dy, base);
+        applyFabOffset(next.x, next.y);
+      };
+      const finish = () => {
+        document.removeEventListener(DRAG_MOVE, onMove, true);
+        document.removeEventListener(DRAG_UP, finish, true);
+        document.removeEventListener('pointercancel', finish, true);
+        fabEl.classList.remove('is-dragging');
+        if (moved) {
+          fabDragEndedAt = Date.now();
+          storeSet(FAB_POS_KEY, fabOffset);
+        }
+      };
+
+      document.addEventListener(DRAG_MOVE, onMove, true);
+      document.addEventListener(DRAG_UP, finish, true);
+      document.addEventListener('pointercancel', finish, true);
+    });
+
+    fabEl.addEventListener('click', (event) => {
+      // 刚拖完的那一下不当作点击
+      if (Date.now() - fabDragEndedAt < 300) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      togglePanel();
+    });
+  }
+
   function refreshOpenPanel() {
     if (!panelOpen || !panelWindow) return;
     try {
@@ -234,7 +342,7 @@
       const docShim = { getElementById: (id) => panelWindow.querySelector('#' + id) };
       bafPopupMain(chromeShim, docShim, { chrome: chromeShim });
       makePanelDraggable();
-      restorePanelOffset();
+      if (!restorePanelOffset()) placePanelNearFab();
     } catch (error) {
       console.warn('[大肥鱼过滤器] 面板渲染失败', error);
     }
