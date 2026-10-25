@@ -138,20 +138,21 @@ test('油猴版：面板复用扩展弹窗（同样的结构与版本号）', as
     assert.match(shadow.querySelector('#count').textContent, /保留 \d+ 条 \/ 共 \d+ 条/);
     assert.ok(shadow.querySelector('.baf-popup'), '应套用弹窗样式容器');
 
-    // 顶栏可拖动，位置写回 GM 存储
+    // 面板可拖动：位移写成 transform，位置写回 GM 存储
     const header = shadow.querySelector('.baf-popup header');
-    assert.equal(header.dataset.bafDrag, '1', '顶栏应挂上拖拽把手标记');
     const win = shadow.querySelector('.baf-window');
-    const fire = (type, x, y) => {
+    assert.equal(win.dataset.bafDrag, '1', '面板应挂上拖拽标记');
+    assert.ok(header.querySelector('.baf-grip'), '顶栏应有可见的 ⠿ 把手');
+    const fire = (type, x, y, target) => {
       const ev = new env.window.MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 });
-      (type === 'pointerdown' ? header : env.window).dispatchEvent(ev);
+      (target || env.doc.body).dispatchEvent(ev);
     };
-    fire('pointerdown', 500, 400);
+    fire('pointerdown', 500, 400, header);
     fire('pointermove', 460, 380);
     fire('pointerup', 460, 380);
-    assert.ok(win.style.left && win.style.top, '拖动后应变成 left/top 定位');
-    const pos = env.store['baf.panel.pos.v1'];
-    assert.ok(pos && typeof pos.left === 'number' && typeof pos.top === 'number', '位置应写入 GM 存储');
+    assert.match(win.style.transform, /translate3d\(/, '拖动后应写入 transform');
+    const pos = env.store['baf.panel.pos.v2'];
+    assert.ok(pos && typeof pos.x === 'number' && typeof pos.y === 'number', '位移应写入 GM 存储');
   } finally {
     env.window.close();
   }

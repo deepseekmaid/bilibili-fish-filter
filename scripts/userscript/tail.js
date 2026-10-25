@@ -59,7 +59,10 @@
     '  display: flex; align-items: center; justify-content: center; z-index: 2147483000; transition: transform .15s; }',
     '.baf-fab:hover { transform: translateY(-2px); }',
     // 面板可拖动：顶栏作为拖拽把手
+    '.baf-window { will-change: transform; }',
     '.baf-window .baf-popup header { cursor: grab; user-select: none; touch-action: none; }',
+    '.baf-window .baf-popup header .baf-grip { display: inline-flex; align-items: center; justify-content: center;',
+    '  width: 16px; height: 18px; margin-right: 2px; color: #b3b9c4; font-size: 13px; line-height: 1; }',
     '.baf-window.is-dragging .baf-popup header { cursor: grabbing; }',
     '.baf-window.is-dragging { box-shadow: 0 24px 60px rgba(15,23,42,.28); }',
   ].join('\n');
@@ -116,70 +119,109 @@
     };
   }
 
-  const PANEL_POS_KEY = 'baf.panel.pos.v1';
+  // 位置用「相对默认锚点的位移」表示，靠 transform 移动。
+  // 不用 left/top：页面若在 html/body 上有 transform，fixed 定位会被限制在
+  // 那个包含块里，left/top 会和视觉位置对不上，拖动看起来像没反应。
+  const PANEL_POS_KEY = 'baf.panel.pos.v2';
+  let panelOffset = { x: 0, y: 0 };
 
-  function clampPanelPos(left, top) {
-    const rect = panelWindow && panelWindow.getBoundingClientRect ? panelWindow.getBoundingClientRect() : null;
-    const width = Math.round((rect && rect.width) || 328);
-    const height = Math.round((rect && rect.height) || 420);
+  function applyPanelOffset(x, y) {
+    panelOffset = { x: Math.round(x), y: Math.round(y) };
+    panelWindow.style.transform = 'translate3d(' + panelOffset.x + 'px,' + panelOffset.y + 'px,0)';
+  }
+
+  function clampOffset(x, y, baseLeft, baseTop) {
+    const rect = panelWindow.getBoundingClientRect();
+    const width = rect.width || 328;
+    const height = rect.height || 420;
     const margin = 8;
-    const maxLeft = Math.max(margin, window.innerWidth - width - margin);
-    const maxTop = Math.max(margin, window.innerHeight - height - margin);
+    const minX = margin - baseLeft;
+    const maxX = Math.max(minX, window.innerWidth - width - margin - baseLeft);
+    const minY = margin - baseTop;
+    const maxY = Math.max(minY, window.innerHeight - height - margin - baseTop);
     return {
-      left: Math.min(Math.max(margin, left), maxLeft),
-      top: Math.min(Math.max(margin, top), maxTop),
+      x: Math.min(Math.max(minX, x), maxX),
+      y: Math.min(Math.max(minY, y), maxY),
     };
   }
 
-  function movePanel(left, top) {
-    const pos = clampPanelPos(left, top);
-    panelWindow.style.left = pos.left + 'px';
-    panelWindow.style.top = pos.top + 'px';
-    panelWindow.style.right = 'auto';
-    panelWindow.style.bottom = 'auto';
-    return pos;
+  /** 当前 transform 为 0 时元素应在的位置（视口坐标）。 */
+  function panelBase() {
+    const rect = panelWindow.getBoundingClientRect();
+    return { left: rect.left - panelOffset.x, top: rect.top - panelOffset.y };
   }
 
-  function applyPanelPos() {
+  function restorePanelOffset() {
     const saved = storeGet(PANEL_POS_KEY, null);
-    if (!saved || typeof saved.left !== 'number' || typeof saved.top !== 'number') return;
-    movePanel(saved.left, saved.top);
+    if (!saved || typeof saved.x !== 'number' || typeof saved.y !== 'number') return;
+    const base = panelBase();
+    const pos = clampOffset(saved.x, saved.y, base.left, base.top);
+    applyPanelOffset(pos.x, pos.y);
   }
 
-  /** 顶栏拖动整个面板，位置记在 GM 存储里，下次打开还在原处。 */
-  function makePanelDraggable() {
-    const handle = panelWindow.querySelector('.baf-popup header');
-    if (!handle || handle.dataset.bafDrag === '1') return;
-    handle.dataset.bafDrag = '1';
+  // 交互控件不参与拖动，避免点开关时把面板拖走
+  const NO_DRAG_SEL = 'button, input, label, select, textarea, a, .seg, .sw, [data-no-drag]';
+  const DRAG_USE_POINTER = typeof window.PointerEvent === 'function';
+  const DRAG_DOWN = DRAG_USE_POINTER ? 'pointerdown' : 'mousedown';
+  const DRAG_MOVE = DRAG_USE_POINTER ? 'pointermove' : 'mousemove';
+  const DRAG_UP = DRAG_USE_POINTER ? 'pointerup' : 'mouseup';
 
-    handle.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0) return;
-      const rect = panelWindow.getBoundingClientRect();
+  /** 按住面板任意空白处（顶栏、标题、底部留白）即可拖动；位移存进 GM 存储。 */
+  function makePanelDraggable() {
+    if (!panelWindow || panelWindow.dataset.bafDrag === '1') return;
+    panelWindow.dataset.bafDrag = '1';
+
+    const header = panelWindow.querySelector('.baf-popup header');
+    if (header && !header.querySelector('.baf-grip')) {
+      const grip = document.createElement('span');
+      grip.className = 'baf-grip';
+      grip.textContent = '⠿';
+      grip.title = '拖动面板';
+      header.insertBefore(grip, header.firstChild);
+    }
+
+    const isInteractive = (target) => {
+      if (!target || typeof target.closest !== 'function') return false;
+      return Boolean(target.closest(NO_DRAG_SEL));
+    };
+
+    panelWindow.addEventListener(DRAG_DOWN, (event) => {
+      if (event.button !== undefined && event.button !== 0) return;
+      if (isInteractive(event.target)) return;
+
+      // 拖动期间不要选中页面文字
+      const prevUserSelect = document.documentElement.style.userSelect;
+      document.documentElement.style.userSelect = 'none';
+      event.preventDefault();
+
+      const base = panelBase();
       const startX = event.clientX;
       const startY = event.clientY;
-      const startLeft = rect.left;
-      const startTop = rect.top;
-
+      const start = { x: panelOffset.x, y: panelOffset.y };
       panelWindow.classList.add('is-dragging');
-      movePanel(startLeft, startTop);
 
-      const onMove = (e) => {
-        movePanel(startLeft + (e.clientX - startX), startTop + (e.clientY - startY));
+      const onMove = (moveEvent) => {
+        const next = clampOffset(
+          start.x + (moveEvent.clientX - startX),
+          start.y + (moveEvent.clientY - startY),
+          base.left,
+          base.top,
+        );
+        applyPanelOffset(next.x, next.y);
       };
-      const onUp = () => {
-        window.removeEventListener('pointermove', onMove);
-        window.removeEventListener('pointerup', onUp);
-        window.removeEventListener('pointercancel', onUp);
+      const finish = () => {
+        document.removeEventListener(DRAG_MOVE, onMove, true);
+        document.removeEventListener(DRAG_UP, finish, true);
+        document.removeEventListener('pointercancel', finish, true);
+        document.documentElement.style.userSelect = prevUserSelect;
         panelWindow.classList.remove('is-dragging');
-        const box = panelWindow.getBoundingClientRect();
-        storeSet(PANEL_POS_KEY, { left: Math.round(box.left), top: Math.round(box.top) });
+        storeSet(PANEL_POS_KEY, { x: panelOffset.x, y: panelOffset.y });
       };
 
-      window.addEventListener('pointermove', onMove);
-      window.addEventListener('pointerup', onUp);
-      window.addEventListener('pointercancel', onUp);
-      event.preventDefault();
-      event.stopPropagation();
+      // 用捕获阶段监听：页面自己的 pointermove 处理不会把事件吃掉
+      document.addEventListener(DRAG_MOVE, onMove, true);
+      document.addEventListener(DRAG_UP, finish, true);
+      document.addEventListener('pointercancel', finish, true);
     });
   }
 
@@ -192,7 +234,7 @@
       const docShim = { getElementById: (id) => panelWindow.querySelector('#' + id) };
       bafPopupMain(chromeShim, docShim, { chrome: chromeShim });
       makePanelDraggable();
-      applyPanelPos();
+      restorePanelOffset();
     } catch (error) {
       console.warn('[大肥鱼过滤器] 面板渲染失败', error);
     }
@@ -203,9 +245,9 @@
       ensureHost();
       window.addEventListener('resize', () => {
         if (!panelWindow) return;
-        if (!panelWindow.style.left && !panelWindow.style.top) return;
-        const box = panelWindow.getBoundingClientRect();
-        movePanel(box.left, box.top);
+        const base = panelBase();
+        const pos = clampOffset(panelOffset.x, panelOffset.y, base.left, base.top);
+        applyPanelOffset(pos.x, pos.y);
       });
       if (typeof GM_registerMenuCommand === 'function') {
         GM_registerMenuCommand('打开设置面板', () => { if (!panelOpen) togglePanel(); });
