@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SOURCE = readFileSync(join(root, 'dist/bilibili-fish-filter.user.js'), 'utf8');
 const MANIFEST = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
 

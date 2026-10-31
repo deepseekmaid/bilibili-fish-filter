@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const userscriptPath = join(root, 'dist/bilibili-fish-filter.user.js');

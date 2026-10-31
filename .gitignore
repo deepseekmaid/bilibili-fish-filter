@@ -5,3 +5,4 @@ Thumbs.db
 .vscode/
 .idea/
 coverage/
+dist/*-flat.zip

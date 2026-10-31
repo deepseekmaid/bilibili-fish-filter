@@ -140,15 +140,18 @@ npm run version:check  # 校验 manifest / package / 油猴 @version 三处一�
 ├── icons/                        16 / 32 / 48 / 128 图标
 ├── dist/                         构建产物：zip + .user.js
 ├── docs/                         README 截图
-├── scripts/
-│   ├── build.mjs                 零依赖打 zip
-│   ├── build-userscript.mjs      由 content.js 生成油猴脚本
-│   ├── check-version.mjs         版本一致性校验
-│   ├── set-version.mjs           版本号切换
-│   └── userscript/               油猴适配层与素材（tail.js、fab.webp）
-├── test/                         扩展 / 面板 / 油猴断言
+├── dev/                          开发工具（不参与扩展加载）
+│   ├── scripts/
+│   │   ├── build.mjs             零依赖打 zip
+│   │   ├── build-userscript.mjs  由 content.js 生成油猴脚本
+│   │   ├── check-version.mjs     版本一致性校验
+│   │   ├── set-version.mjs       版本号切换
+│   │   └── userscript/           油猴适配层与素材（tail.js、fab.webp）
+│   └── test/                     扩展 / 面板 / 油猴断言
 └── .github/workflows/ci.yml      测试 → 构建 → 版本校验
 ```
+
+> 根目录只放扩展运行必需的文件（manifest / content / popup / icons），开发脚本与测试统一收进 `dev/`；Chrome「加载已解压的扩展程序」仍选仓库根目录即可。
 
 ## 许可
 

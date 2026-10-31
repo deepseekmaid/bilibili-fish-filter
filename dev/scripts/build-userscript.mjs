@@ -8,10 +8,10 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
 const source = readFileSync(join(root, 'content.js'), 'utf8');
-const tail = readFileSync(join(root, 'scripts/userscript/tail.js'), 'utf8');
+const tail = readFileSync(join(root, 'dev/scripts/userscript/tail.js'), 'utf8');
 const popupHtml = readFileSync(join(root, 'popup.html'), 'utf8');
 const popupJs = readFileSync(join(root, 'popup.js'), 'utf8');
 
@@ -34,7 +34,7 @@ const bodyMatch = popupHtml.match(/<body>([\s\S]*?)<\/body>/);
 if (!bodyMatch) throw new Error('popup.html 里找不到 <body>');
 const iconBase64 = readFileSync(join(root, 'icons/icon48.png')).toString('base64');
 // 右下角悬浮球图标：蓝底圆 + 鲸鱼娘 + 绿钩
-const fabBase64 = readFileSync(join(root, 'scripts/userscript/fab.webp')).toString('base64');
+const fabBase64 = readFileSync(join(root, 'dev/scripts/userscript/fab.webp')).toString('base64');
 const panelHtml = bodyMatch[1]
   .replace(/<script[\s\S]*?<\/script>/g, '')
   .replace(/src="icons\/icon48\.png"/g, 'src="data:image/png;base64,' + iconBase64 + '"')

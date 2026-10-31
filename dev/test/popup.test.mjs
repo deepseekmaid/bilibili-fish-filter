@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const HTML = readFileSync(join(root, 'popup.html'), 'utf8');
 const SCRIPT = readFileSync(join(root, 'popup.js'), 'utf8');
 const MANIFEST = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));

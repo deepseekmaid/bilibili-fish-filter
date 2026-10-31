@@ -10,11 +10,11 @@
     "node": ">=20"
   },
   "scripts": {
-    "pretest": "node scripts/build-userscript.mjs",
-    "test": "node test/filter.test.mjs && node test/late-shadow.test.mjs && node test/popup.test.mjs && node test/userscript.test.mjs",
-    "build": "node scripts/build.mjs && node scripts/build-userscript.mjs",
-    "version:check": "node scripts/check-version.mjs",
-    "version:fix": "node scripts/set-version.mjs --fix",
+    "pretest": "node dev/scripts/build-userscript.mjs",
+    "test": "node dev/test/filter.test.mjs && node dev/test/late-shadow.test.mjs && node dev/test/popup.test.mjs && node dev/test/userscript.test.mjs",
+    "build": "node dev/scripts/build.mjs && node dev/scripts/build-userscript.mjs",
+    "version:check": "node dev/scripts/check-version.mjs",
+    "version:fix": "node dev/scripts/set-version.mjs --fix",
     "verify": "npm test && npm run build && npm run version:check"
   },
   "devDependencies": {

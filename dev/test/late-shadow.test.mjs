@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const SOURCE = readFileSync(join(root, 'content.js'), 'utf8');
 
