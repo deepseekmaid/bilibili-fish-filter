@@ -5,6 +5,9 @@
 // @description  白名单式 B 站评论过滤：三条规则（昵称含鱼 / 正文含 @ / 正文含主人）可独立设挡，取并集或交集。
 // @homepageURL  https://github.com/deepseekmaid/bilibili-fish-filter
 // @supportURL   https://github.com/deepseekmaid/bilibili-fish-filter/issues
+// @downloadURL  https://raw.githubusercontent.com/deepseekmaid/bilibili-fish-filter/main/dist/bilibili-fish-filter.user.js
+// @updateURL    https://raw.githubusercontent.com/deepseekmaid/bilibili-fish-filter/main/dist/bilibili-fish-filter.user.js
+// @license      MIT
 // @match        https://www.bilibili.com/*
 // @match        https://t.bilibili.com/*
 // @match        https://space.bilibili.com/*
