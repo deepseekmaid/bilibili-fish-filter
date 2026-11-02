@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.5
+
+- 清单改为本地化条目（`__MSG_extName__` / `__MSG_extDesc__`）+ `default_locale: zh_CN`，并新增 `_locales/zh_CN/messages.json`
+- 修复 Edge 合作伙伴中心只识别出「英语（美国）」的问题：商店语言由清单里的 `__MSG_` 引用推导
+- 功能无变化
+
 ## v1.04 — 2026-10-25
 
 ### 修复

@@ -12,6 +12,14 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
 const source = readFileSync(join(root, 'content.js'), 'utf8');
 const tail = readFileSync(join(root, 'dev/scripts/userscript/tail.js'), 'utf8');
+function resolveMsg(value) {
+  const m = /^__MSG_(.+)__$/.exec(value || '');
+  if (!m) return value;
+  const messages = JSON.parse(readFileSync(join(root, '_locales/zh_CN/messages.json'), 'utf8'));
+  return messages[m[1]]?.message || value;
+}
+const extName = resolveMsg(manifest.name);
+const extDesc = resolveMsg(manifest.description);
 const popupHtml = readFileSync(join(root, 'popup.html'), 'utf8');
 const popupJs = readFileSync(join(root, 'popup.js'), 'utf8');
 
@@ -68,10 +76,10 @@ body = body.replace(/\}\)\(\);\s*$/, '  setupPanel();\n})();\n');
 
 const header = [
   '// ==UserScript==',
-  '// @name         ' + manifest.name + '（油猴版）',
+  '// @name         ' + extName + '（油猴版）',
   '// @namespace    https://github.com/deepseekmaid/bilibili-fish-filter',
   '// @version      ' + manifest.version,
-  '// @description  ' + manifest.description,
+  '// @description  ' + extDesc,
   '// @homepageURL  https://github.com/deepseekmaid/bilibili-fish-filter',
   '// @supportURL   https://github.com/deepseekmaid/bilibili-fish-filter/issues',
   '// @downloadURL  https://raw.githubusercontent.com/deepseekmaid/bilibili-fish-filter/main/dist/bilibili-fish-filter.user.js',

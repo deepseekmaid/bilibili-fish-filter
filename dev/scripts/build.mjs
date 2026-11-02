@@ -17,6 +17,7 @@ const FILES = [
   'icons/icon32.png',
   'icons/icon48.png',
   'icons/icon128.png',
+  '_locales/zh_CN/messages.json',
   'README.md',
   'CHANGELOG.md',
   'LICENSE',

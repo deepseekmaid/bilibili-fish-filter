@@ -4,7 +4,7 @@
 
 **——让你的 B站评论区充满卖萌的大肥鱼！**
 
-![版本](https://img.shields.io/badge/version-v1.04-4d6bfe) ![许可](https://img.shields.io/badge/license-MIT-green) ![平台](https://img.shields.io/badge/Chrome%20%7C%20Edge%20%7C%20Tampermonkey-ok-4d6bfe)
+![版本](https://img.shields.io/badge/version-v1.05-4d6bfe) ![许可](https://img.shields.io/badge/license-MIT-green) ![平台](https://img.shields.io/badge/Chrome%20%7C%20Edge%20%7C%20Tampermonkey-ok-4d6bfe)
 
 </div>
 
@@ -47,7 +47,7 @@
 
 ### Chrome / Edge 扩展
 
-1. 下载 [`bilibili-fish-filter-v1.04.zip`](https://github.com/deepseekmaid/bilibili-fish-filter/releases/latest) 并解压；
+1. 下载 [`bilibili-fish-filter-v1.05.zip`](https://github.com/deepseekmaid/bilibili-fish-filter/releases/latest) 并解压；
 2. 打开 `chrome://extensions`（Edge 为 `edge://extensions`），右上角开启「开发者模式」；
 3. 点「加载已解压的扩展程序」，选择解压出的 `bilibili-fish-filter/` 目录；
 4. 刷新已打开的 B 站页面。
