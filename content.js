@@ -1,10 +1,14 @@
 /* B站大肥鱼过滤器 — content script
  * 白名单式过滤：命中的留下，其余隐藏（只改当前页面 DOM，不改任何数据）。
  *
- * 三条规则，可单独设挡：
+ * 四条规则，可单独设挡：
  *   atMode     : 规则二「正文含 @」—— 'contains' 包含 @ / 'startsWith' 以 @ 开头 / 'off' 关
  *   modeFish   : 规则一「昵称含鱼」—— true 时昵称含「鱼 / 魚」即命中
  *   masterMode : 规则三「主人」—— 'contains' 包含 / 'startsWith' 以主人开头 / 'off' 关
+ *   modeCustom : 规则四「自定义词语」—— true 时按 customCombine 组合两栏词表（单栏有词时按该栏判）
+ *   customNameWords: 昵称自定义词（最多 20 个，每个 ≤ 20 字）
+ *   customTextWords: 评论正文自定义词（同上）
+ *   customCombine: 规则四内部两栏的组合方式—— 'union'（默认，任一栏命中）/ 'intersect'（两栏都命中）
  *
  * 组合方式 combine：
  *   'union'（默认，并集）：命中任意一条即保留
@@ -19,7 +23,7 @@
 (() => {
   'use strict';
 
-  const DEFAULTS = { atMode: 'off', modeFish: true, masterMode: 'startsWith', combine: 'union', autoLoad: false, fastMode: false };
+  const DEFAULTS = { atMode: 'off', modeFish: true, masterMode: 'startsWith', combine: 'union', autoLoad: false, fastMode: false, modeCustom: false, customNameWords: [], customTextWords: [], customCombine: 'union' };
   const settings = { ...DEFAULTS };
 
   // AUTO 等常量在文件后半段才初始化，之前不能碰自动加载
@@ -40,7 +44,25 @@
 
   /* ---------------------------------------------------------------- 设置 */
 
+  function sanitizeWords(list) {
+    if (!Array.isArray(list)) return [];
+    const out = [];
+    for (const raw of list) {
+      const word = String(raw ?? '').trim();
+      if (!word || word.length > 20) continue;
+      if (!out.includes(word)) out.push(word);
+      if (out.length >= 20) break;
+    }
+    return out;
+  }
+
   function normalize(raw) {
+    const legacyWords = sanitizeWords(raw?.customWords);
+    const nameWords = sanitizeWords(raw?.customNameWords);
+    let textWords = sanitizeWords(raw?.customTextWords);
+    // 旧版只有一个 customWords 列表：仅当两栏都没有词时按评论词回填，
+    // 避免把评论词同时当成昵称词（那样会让昵称含这些词的评论被误放行）。
+    if (!nameWords.length && !textWords.length && legacyWords.length) textWords = legacyWords;
     return {
       atMode: raw?.atMode === 'contains' || raw?.atMode === 'startsWith'
         ? raw.atMode
@@ -52,6 +74,10 @@
       combine: raw?.combine === 'intersect' ? 'intersect' : 'union',
       autoLoad: raw?.autoLoad === true,
       fastMode: raw?.fastMode === true,
+      modeCustom: raw?.modeCustom === true,
+      customNameWords: nameWords,
+      customTextWords: textWords,
+      customCombine: raw?.customCombine === 'intersect' ? 'intersect' : 'union',
     };
   }
 
@@ -74,6 +100,11 @@
           settings.atMode = next === 'contains' || next === 'startsWith' ? next : 'off';
           touched = true;
         }
+        if (changes.modeAt && !changes.atMode) {
+          // 旧版（≤1.6）只存布尔 modeAt：另一台设备还没升级时，实时同步也要能认出「包含 @」
+          settings.atMode = changes.modeAt.newValue === true ? 'contains' : 'off';
+          touched = true;
+        }
         if (changes.modeFish) {
           settings.modeFish = changes.modeFish.newValue !== false;
           touched = true;
@@ -89,6 +120,27 @@
         }
         if (changes.fastMode) {
           settings.fastMode = changes.fastMode.newValue === true;
+          touched = true;
+        }
+        if (changes.modeCustom) {
+          settings.modeCustom = changes.modeCustom.newValue === true;
+          touched = true;
+        }
+        if (changes.customNameWords) {
+          settings.customNameWords = sanitizeWords(changes.customNameWords.newValue);
+          touched = true;
+        }
+        if (changes.customTextWords) {
+          settings.customTextWords = sanitizeWords(changes.customTextWords.newValue);
+          touched = true;
+        }
+        if (changes.customCombine) {
+          settings.customCombine = changes.customCombine.newValue === 'intersect' ? 'intersect' : 'union';
+          touched = true;
+        }
+        if (changes.customWords && !settings.customNameWords.length && !settings.customTextWords.length) {
+          // 与 normalize 的迁移口径一致：新双栏已有词时，旧字段不再覆盖评论栏
+          settings.customTextWords = sanitizeWords(changes.customWords.newValue);
           touched = true;
         }
         if (changes.autoLoad) {
@@ -171,6 +223,22 @@
     if (settings.modeFish) rules.push(FISH_CHARS.some((ch) => name.includes(ch)));
     if (settings.masterMode === 'contains') rules.push(text.includes('主人'));
     else if (settings.masterMode === 'startsWith') rules.push(/^\s*主人/.test(text));
+    if (settings.modeCustom) {
+      const hitName = settings.customNameWords.length
+        && settings.customNameWords.some((word) => name.toLowerCase().includes(word.toLowerCase()));
+      const hitText = settings.customTextWords.length
+        && settings.customTextWords.some((word) => text.toLowerCase().includes(word.toLowerCase()));
+      const hasName = settings.customNameWords.length > 0;
+      const hasText = settings.customTextWords.length > 0;
+      if (hasName || hasText) {
+        // 只有一栏有词时按这一栏判；两栏都有词时按规则四自己的并/交设置判
+        const both = hasName && hasText;
+        const hit = both
+          ? (settings.customCombine === 'intersect' ? (hitName && hitText) : (hitName || hitText))
+          : (hasName ? hitName : hitText);
+        rules.push(Boolean(hit));
+      }
+    }
 
     if (!rules.length) return false;
 

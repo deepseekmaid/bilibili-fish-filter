@@ -167,8 +167,8 @@ test('油猴版：面板复用扩展弹窗（同样的结构与版本号）', as
     const shadow = host.shadowRoot;
     assert.ok(shadow.querySelector('.baf-fab'), '应有浮动按钮');
     shadow.querySelector('.baf-fab').click();
-    await sleep(150);
-    for (const id of ['combineSeg', 'atSeg', 'masterSeg', 'modeFish', 'autoLoad', 'fastMode', 'ver']) {
+    await sleep(500);
+    for (const id of ['combineSeg', 'atSeg', 'masterSeg', 'modeFish', 'autoLoad', 'fastMode', 'ver', 'customBlock', 'modeCustom', 'customCombineSeg', 'customNameInput', 'customNameAdd', 'customNameChips', 'customTextInput', 'customTextAdd', 'customTextChips']) {
       assert.ok(shadow.querySelector('#' + id), '面板里应有 #' + id);
     }
     assert.equal(shadow.querySelector('#ver').textContent, MANIFEST.version_name, '版本号应与 manifest.version_name 一致');
@@ -214,6 +214,97 @@ test('油猴版：面板复用扩展弹窗（同样的结构与版本号）', as
 
     // 注：jsdom 的 getBoundingClientRect 恒为 0，无法验证「缩窗后夹紧」，
     // 这部分改由真实 Chrome 的 harness 覆盖（预置一个超出视口的坐标，检查加载时被夹紧）。
+  } finally {
+    env.window.close();
+  }
+});
+
+test('油猴版：在面板里关规则、开规则四、加昵称词后即时过滤', async () => {
+  const env = boot();
+  try {
+    await sleep(450);
+    const shadow = env.doc.getElementById('baf-userscript-panel').shadowRoot;
+    shadow.querySelector('.baf-fab').click();
+    await sleep(400);
+
+    const fishBox = shadow.querySelector('#modeFish');
+    fishBox.checked = false;
+    fishBox.dispatchEvent(new env.window.Event('change', { bubbles: true }));
+    shadow.querySelector('#masterSeg button[data-mode="off"]').click();
+    const customBox = shadow.querySelector('#modeCustom');
+    customBox.checked = true;
+    customBox.dispatchEvent(new env.window.Event('change', { bubbles: true }));
+    const input = shadow.querySelector('#customNameInput');
+    input.value = '大肥鱼';
+    shadow.querySelector('#customNameAdd').click();
+    await sleep(500);
+
+    const saved = env.store['baf.settings.v1'];
+    assert.equal(saved.modeFish, false);
+    assert.equal(saved.masterMode, 'off');
+    assert.equal(saved.modeCustom, true);
+    assert.deepEqual([...saved.customNameWords], ['大肥鱼']);
+    assert.deepEqual([...saved.customTextWords], [], '没动过的评论栏应保持为空');
+
+    assert.equal(state(env.fish), 'show', '昵称词命中应放行');
+    assert.equal(state(env.at), 'hide');
+    assert.equal(state(env.plain), 'hide');
+    assert.equal(state(env.master), 'hide', '规则三已关，主人评论不应再被放行');
+  } finally {
+    env.window.close();
+  }
+});
+
+test('油猴版：规则四读取 GM 存储并即时过滤', async () => {
+  const env = boot({ 'baf.settings.v1': { modeFish: false, masterMode: 'off', modeCustom: true, customTextWords: ['快看'] } });
+  try {
+    await sleep(450);
+    assert.equal(state(env.at), 'show', '正文含自定义词应保留');
+    assert.equal(state(env.fish), 'hide', '未命中自定义词应隐藏');
+    assert.equal(state(env.plain), 'hide');
+  } finally {
+    env.window.close();
+  }
+});
+
+test('油猴版：规则四改词后即时重扫并写回 GM', async () => {
+  const env = boot();
+  try {
+    await sleep(400);
+    env.window.__bafApply({ modeFish: false, masterMode: 'off', modeCustom: true, customNameWords: ['大肥鱼'], customTextWords: ['主人', '字幕'] });
+    await sleep(450);
+    assert.equal(state(env.plain), 'show', '评论词命中应放行');
+    assert.equal(state(env.master), 'show', '评论词「主人」命中应放行');
+    assert.equal(state(env.fish), 'show', '昵称词「大肥鱼」命中应放行');
+    assert.equal(state(env.at), 'hide');
+    const saved = env.store['baf.settings.v1'];
+    assert.deepEqual([...saved.customTextWords], ['主人', '字幕'], '评论词表应写回 GM 存储');
+    assert.deepEqual([...saved.customNameWords], ['大肥鱼'], '昵称词表应写回 GM 存储');
+    assert.equal(saved.modeCustom, true);
+  } finally {
+    env.window.close();
+  }
+});
+
+test('油猴版：规则四内部交集生效', async () => {
+  const env = boot({ 'baf.settings.v1': { modeFish: false, masterMode: 'off', modeCustom: true, customCombine: 'intersect', customNameWords: ['大肥鱼'], customTextWords: ['不错'] } });
+  try {
+    await sleep(500);
+    assert.equal(state(env.fish), 'show', '昵称与正文都命中的应保留');
+    assert.equal(state(env.at), 'hide', '只命中正文词的不应保留');
+    assert.equal(state(env.plain), 'hide');
+    assert.equal(state(env.master), 'hide');
+  } finally {
+    env.window.close();
+  }
+});
+
+test('油猴版：旧版 customWords 只当评论词', async () => {
+  const env = boot({ 'baf.settings.v1': { modeFish: false, masterMode: 'off', modeCustom: true, customWords: ['大肥鱼'] } });
+  try {
+    await sleep(500);
+    assert.equal(state(env.fish), 'hide', '昵称命中旧列表不应放行');
+    assert.equal(state(env.at), 'hide');
   } finally {
     env.window.close();
   }

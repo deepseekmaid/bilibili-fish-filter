@@ -82,8 +82,6 @@ const header = [
   '// @description  ' + extDesc,
   '// @homepageURL  https://github.com/deepseekmaid/bilibili-fish-filter',
   '// @supportURL   https://github.com/deepseekmaid/bilibili-fish-filter/issues',
-  '// @downloadURL  https://raw.githubusercontent.com/deepseekmaid/bilibili-fish-filter/main/dist/bilibili-fish-filter.user.js',
-  '// @updateURL    https://raw.githubusercontent.com/deepseekmaid/bilibili-fish-filter/main/dist/bilibili-fish-filter.user.js',
   '// @license      MIT',
   '// @match        https://www.bilibili.com/*',
   '// @match        https://t.bilibili.com/*',

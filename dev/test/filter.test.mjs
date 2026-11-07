@@ -19,6 +19,9 @@ const CASES = [
   { id: 'reply-only', name: '路人丙', text: '回复 @小红：确实如此' },
   { id: 'both', name: '小鱼干儿', text: '@小红 快来看这个' },
   { id: 'reply-loose', name: '路人丁', text: '回复@小红 后面还有 @小刚' },
+  { id: 'custom-hit', name: '路人己', text: '这只猫咪好可爱' },
+  { id: 'custom-name', name: '猫咪君', text: '今天天气不错' },
+  { id: 'custom-both', name: '猫咪君', text: '好可爱呀' },
 ];
 
 function comment(doc, spec, reply) {
@@ -44,7 +47,7 @@ function comment(doc, spec, reply) {
   return renderer;
 }
 
-function boot({ modeAt, modeFish, masterMode, atMode, combine }) {
+function boot({ modeAt, modeFish, masterMode, atMode, combine, modeCustom, customNameWords, customTextWords, customCombine, legacyCustomWords }) {
   const dom = new JSDOM('<!doctype html><html><body><div id="stage"></div></body></html>', {
     url: 'https://www.bilibili.com/video/BV1xx',
     pretendToBeVisual: true,
@@ -61,6 +64,11 @@ function boot({ modeAt, modeFish, masterMode, atMode, combine }) {
         modeFish,
         masterMode: masterMode || 'startsWith',
         combine: combine || 'union',
+        modeCustom: modeCustom === true,
+        ...(Array.isArray(legacyCustomWords)
+          ? { customWords: legacyCustomWords }
+          : { customNameWords: Array.isArray(customNameWords) ? customNameWords : [], customTextWords: Array.isArray(customTextWords) ? customTextWords : [] }),
+        customCombine: customCombine === 'intersect' ? 'intersect' : 'union',
       }) },
       onChanged: { addListener: (fn) => listeners.push(fn) },
     },
@@ -983,3 +991,218 @@ test('自动加载：showEnd / showSpinner 时不去戳 getList', async () => {
 
 
 
+
+
+test('规则二：旧版 modeAt 布尔值的实时同步也生效', async () => {
+  const env = boot({ modeFish: true, masterMode: 'off' });
+  try {
+    await sleep(250);
+    assert.equal(state(env.refs['at-mid']), 'hide');
+    env.listeners[0]({ modeAt: { newValue: true } }, 'sync');
+    await sleep(350);
+    assert.equal(state(env.refs['at-mid']), 'show', '旧设备写入 modeAt:true 应切到「包含 @」');
+    env.listeners[0]({ modeAt: { newValue: false } }, 'sync');
+    await sleep(350);
+    assert.equal(state(env.refs['at-mid']), 'hide', 'modeAt:false 应切回关');
+  } finally {
+    env.window.close();
+  }
+});
+
+test('规则四：昵称词与评论词分别生效', async () => {
+  const env = boot({ modeFish: false, masterMode: 'off', modeCustom: true, customNameWords: ['猫咪君'], customTextWords: ['好可爱'] });
+  try {
+    await sleep(250);
+    expectAll(env.refs, {
+      'custom-name': 'show',
+      'custom-hit': 'show',
+      'fish-plain': 'hide',
+      'at-mid': 'hide',
+      neither: 'hide',
+    });
+    assert.equal(state(env.refs['reply-loose']), 'hide', '正文不含评论词不应命中');
+  } finally {
+    env.window.close();
+  }
+});
+
+test('规则四：昵称词不影响正文判定，反之亦然', async () => {
+  const env = boot({ modeFish: false, masterMode: 'off', modeCustom: true, customNameWords: ['大肥鱼'], customTextWords: [] });
+  try {
+    await sleep(250);
+    expectAll(env.refs, {
+      'fish-plain': 'show',
+      'fish-replytag': 'show',
+      both: 'hide',
+      'custom-hit': 'hide',
+      'custom-name': 'hide',
+    });
+  } finally {
+    env.window.close();
+  }
+});
+
+test('规则四 + 规则一并集：任一条命中就保留', async () => {
+  const env = boot({ modeFish: true, masterMode: 'off', modeCustom: true, customTextWords: ['字幕'] });
+  try {
+    await sleep(250);
+    expectAll(env.refs, {
+      'fish-plain': 'show',
+      'custom-hit': 'hide',
+      neither: 'show',
+      'at-mid': 'hide',
+    });
+  } finally {
+    env.window.close();
+  }
+});
+
+test('规则四 + 规则一交集：两条都命中才保留', async () => {
+  const env = boot({ combine: 'intersect', modeFish: true, masterMode: 'off', modeCustom: true, customTextWords: ['不错'] });
+  try {
+    await sleep(250);
+    expectAll(env.refs, {
+      'fish-plain': 'show',
+      'fish-replytag': 'hide',
+      both: 'hide',
+      'custom-hit': 'hide',
+    });
+  } finally {
+    env.window.close();
+  }
+});
+
+test('规则四：storage 变化即时生效（多端同步路径）', async () => {
+  const env = boot({ modeFish: true, masterMode: 'off' });
+  try {
+    await sleep(250);
+    assert.equal(state(env.refs['custom-hit']), 'hide', '初始未开启规则四时应被规则一隐藏');
+    env.listeners[0]({ modeCustom: { newValue: true }, customTextWords: { newValue: ['好可爱'] } }, 'sync');
+    await sleep(350);
+    assert.equal(state(env.refs['custom-hit']), 'show', '评论词命中应立即放行');
+    env.listeners[0]({ customNameWords: { newValue: ['猫咪君'] } }, 'sync');
+    await sleep(350);
+    assert.equal(state(env.refs['custom-name']), 'show', '昵称词命中应立即放行');
+    env.listeners[0]({ customTextWords: { newValue: ['字幕'] } }, 'sync');
+    await sleep(350);
+    assert.equal(state(env.refs['custom-hit']), 'hide', '旧的评论词命中应恢复隐藏');
+    assert.equal(state(env.refs.neither), 'show', '新的评论词命中应及时生效');
+  } finally {
+    env.window.close();
+  }
+});
+
+test('规则四：旧版单列表 customWords 变化按评论词处理', async () => {
+  const env = boot({ modeFish: true, masterMode: 'off', modeCustom: true });
+  try {
+    await sleep(250);
+    env.listeners[0]({ customWords: { newValue: ['好可爱'] } }, 'sync');
+    await sleep(350);
+    assert.equal(state(env.refs['custom-hit']), 'show', '旧字段应被当成评论词');
+  } finally {
+    env.window.close();
+  }
+});
+
+test('规则四：旧字段变化不覆盖已有的新评论词', async () => {
+  const env = boot({ modeFish: false, masterMode: 'off', modeCustom: true, customTextWords: ['好可爱'] });
+  try {
+    await sleep(300);
+    assert.equal(state(env.refs['custom-hit']), 'show');
+    env.listeners[0]({ customWords: { newValue: ['字幕'] } }, 'sync');
+    await sleep(350);
+    assert.equal(state(env.refs['custom-hit']), 'show', '新双栏已有词时旧字段不应覆盖');
+    assert.equal(state(env.refs.neither), 'hide', '旧字段的词不能突然生效');
+  } finally {
+    env.window.close();
+  }
+});
+
+test('规则四内部并集：昵称栏或评论栏任一中即命中', async () => {
+  const env = boot({ modeFish: false, masterMode: 'off', modeCustom: true, customCombine: 'union', customNameWords: ['猫咪君'], customTextWords: ['好可爱'] });
+  try {
+    await sleep(250);
+    expectAll(env.refs, {
+      'custom-name': 'show',
+      'custom-hit': 'show',
+      'custom-both': 'show',
+      'fish-plain': 'hide',
+      neither: 'hide',
+    });
+  } finally {
+    env.window.close();
+  }
+});
+
+test('规则四内部交集：昵称栏与评论栏都要命中', async () => {
+  const env = boot({ modeFish: false, masterMode: 'off', modeCustom: true, customCombine: 'intersect', customNameWords: ['猫咪君'], customTextWords: ['好可爱'] });
+  try {
+    await sleep(250);
+    expectAll(env.refs, {
+      'custom-both': 'show',
+      'custom-name': 'hide',
+      'custom-hit': 'hide',
+      'fish-plain': 'hide',
+      neither: 'hide',
+    });
+  } finally {
+    env.window.close();
+  }
+});
+
+test('规则四内部交集：只有一栏有词时按该栏判定', async () => {
+  const env = boot({ modeFish: false, masterMode: 'off', modeCustom: true, customCombine: 'intersect', customTextWords: ['好可爱'] });
+  try {
+    await sleep(250);
+    expectAll(env.refs, {
+      'custom-hit': 'show',
+      'custom-both': 'show',
+      'custom-name': 'hide',
+      'fish-plain': 'hide',
+    });
+  } finally {
+    env.window.close();
+  }
+});
+
+test('规则四内部组合变化即时生效（同步）', async () => {
+  const env = boot({ modeFish: false, masterMode: 'off', modeCustom: true, customCombine: 'union', customNameWords: ['猫咪君'], customTextWords: ['好可爱'] });
+  try {
+    await sleep(250);
+    assert.equal(state(env.refs['custom-name']), 'show', '并集下昵称命中应显示');
+    env.listeners[0]({ customCombine: { newValue: 'intersect' } }, 'sync');
+    await sleep(350);
+    assert.equal(state(env.refs['custom-name']), 'hide', '切到交集后只命中一栏应隐藏');
+    assert.equal(state(env.refs['custom-both']), 'show', '两栏都命中的仍显示');
+  } finally {
+    env.window.close();
+  }
+});
+
+test('规则四：旧版 customWords 只回填评论栏，不污染昵称栏', async () => {
+  const env = boot({ modeFish: false, masterMode: 'off', modeCustom: true, legacyCustomWords: ['大肥鱼'] });
+  try {
+    await sleep(300);
+    assert.equal(state(env.refs['fish-plain']), 'hide', '旧列表是评论词，昵称命中不应放行');
+    assert.equal(state(env.refs['at-mid']), 'hide');
+    assert.equal(state(env.refs.neither), 'hide');
+    env.listeners[0]({ customTextWords: { newValue: ['这视频'] } }, 'sync');
+    await sleep(300);
+    assert.equal(state(env.refs['fish-plain']), 'show', '评论词命中正文才应放行');
+  } finally {
+    env.window.close();
+  }
+});
+
+test('规则四：内部并/交与全局并/交是两层，互不覆盖', async () => {
+  const env = boot({ modeFish: true, masterMode: 'off', combine: 'intersect', modeCustom: true, customCombine: 'union', customNameWords: ['大肥鱼'], customTextWords: ['不错'] });
+  try {
+    await sleep(300);
+    assert.equal(state(env.refs['fish-plain']), 'show', '规则一命中 + 内部并命中（昵称/正文都中）→ 全局交集保留');
+    assert.equal(state(env.refs['fish-replytag']), 'show', '昵称命中昵称栏 → 内部并命中，全局交集保留');
+    assert.equal(state(env.refs['custom-hit']), 'hide', '内部并命中（正文）但规则一未命中 → 全局交集隐藏');
+    assert.equal(state(env.refs.neither), 'hide');
+  } finally {
+    env.window.close();
+  }
+});

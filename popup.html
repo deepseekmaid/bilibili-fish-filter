@@ -25,7 +25,7 @@
   main { padding: 0 6px 6px; }
   .block { border-radius: 11px; border: 1px solid transparent; transition: background .16s, border-color .16s; }
   .block + .block { margin-top: 5px; }
-  .block:hover { background: #f7f9fd; border-color: #edf1f8; }
+  .block:not(.custom):hover { background: #f7f9fd; border-color: #edf1f8; }
   .row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; }
   .row .txt { flex: 1 1 auto; min-width: 0; }
   .row b { display: block; font-size: 12.5px; font-weight: 600; color: #1f2329; }
@@ -56,6 +56,50 @@
   }
   .seg button:hover { color: #4d6bfe; }
   .seg button.on { background: #4d6bfe; color: #ffffff; }
+  .rulesWrap { position: relative; }
+  .block.off { opacity: .58; }
+  .custom {
+    position: absolute; right: 6px; top: 1px; width: 112px; height: 168px; margin-top: 0;
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 5px 6px; border-radius: 10px; border: 1px solid #e3eaff;
+    background: linear-gradient(180deg, #fbfcff 0%, #f4f7ff 100%);
+    transition: opacity .16s ease, border-color .16s ease;
+  }
+  .custom.off { opacity: .62; }
+  .cHead { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+  .cHead b { font-size: 10px; font-weight: 600; color: #1f2329; white-space: nowrap; }
+  .cSeg { display: inline-flex; gap: 1px; padding: 1px; border-radius: 5px; background: #eef2fb; border: 1px solid #dfe6f6; }
+  .cSeg button { border: 0; background: transparent; font: inherit; font-size: 9px; line-height: 1; padding: 2px 3px; border-radius: 4px; color: #6b7280; cursor: pointer; }
+  .cSeg button.on { background: #4d6bfe; color: #fff; }
+  .cHead { gap: 2px; }
+  .cSw { position: relative; display: inline-flex; width: 28px; height: 16px; cursor: pointer; flex: 0 0 auto; }
+  .cSw input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .cSw span { width: 28px; height: 16px; border-radius: 9px; background: #d9dee8; position: relative; transition: background .18s ease; }
+  .cSw span::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(31,35,41,.2); transition: transform .18s ease; }
+  .cSw input:checked + span { background: #4d6bfe; }
+  .cSw input:checked + span::after { transform: translateX(12px); }
+  .cSw input:focus-visible + span { outline: 2px solid #4d6bfe; outline-offset: 2px; }
+  .cField { display: flex; flex-direction: column; gap: 2px; }
+  .cLabel { font-size: 9px; line-height: 1.2; color: #6b7280; }
+  .cInput { display: flex; gap: 3px; }
+  .cInput input {
+    flex: 1 1 auto; min-width: 0; height: 20px; padding: 0 4px;
+    border: 1px solid #dbe3f5; border-radius: 5px; background: #fff;
+    font: inherit; font-size: 10px; color: #1f2329; outline: none;
+  }
+  .cInput input:focus { border-color: #4d6bfe; box-shadow: 0 0 0 2px rgba(77,107,254,.12); }
+  .cInput button {
+    flex: 0 0 auto; width: 20px; height: 20px; border: 0; border-radius: 5px;
+    background: #4d6bfe; color: #fff; font-size: 13px; line-height: 1; cursor: pointer; padding: 0;
+  }
+  .cInput button:disabled { background: #c9d3ee; cursor: default; }
+  .cChips { flex: 0 0 auto; max-height: 30px; overflow-y: auto; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 2px; }
+  .cChips::-webkit-scrollbar { width: 3px; }
+  .cChips::-webkit-scrollbar-thumb { background: #d8e0f2; border-radius: 2px; }
+  .cChip { display: inline-flex; align-items: center; gap: 1px; max-width: 100%; padding: 0 3px; border-radius: 4px; border: 1px solid #dfe6f6; background: #fff; font-size: 9.5px; line-height: 1.45; color: #33415c; }
+  .cChip em { font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 68px; }
+  .cChip button { border: 0; background: transparent; color: #9aa1ad; font-size: 10px; line-height: 1; padding: 0; cursor: pointer; }
+  .cChip button:hover { color: #e5484d; }
   footer {
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
     padding: 6px 14px 8px; border-top: 1px solid #eef1f6;
@@ -69,6 +113,7 @@
     border-top: 1px solid #eef1f6;
   }
   footer .saved { color: #16a34a; opacity: 0; transition: opacity .2s; }
+  footer .saved.err { color: #e5484d; }
   footer .saved.on { opacity: 1; }
   footer .ver { color: #9aa1ad; }
 </style>
@@ -93,7 +138,7 @@
           <button type="button" data-combine="intersect">交集</button>
         </div>
       </div>
-      <div class="hint">并集：命中任一就保留；交集：三条规则全命中才保留</div>
+      <div class="hint">并集：命中任一就保留；交集：所有启用的规则都命中才保留</div>
     </section>
 
     <section class="block" id="fishBlock">
@@ -107,6 +152,7 @@
       </label>
     </section>
 
+    <div class="rulesWrap">
     <section class="block" id="atBlock">
       <div class="row">
         <div class="txt">
@@ -139,6 +185,37 @@
       </div>
     </section>
 
+    <section class="block custom off" id="customBlock" aria-label="规则四：自定义昵称与评论词">
+      <div class="cHead">
+        <b>规则四</b>
+        <div class="cSeg" id="customCombineSeg" title="规则四内部：昵称栏与评论栏如何组合">
+          <button type="button" data-ccombine="union" class="on" aria-label="规则四：两栏任一命中">并</button>
+          <button type="button" data-ccombine="intersect" aria-label="规则四：两栏都命中">交</button>
+        </div>
+        <label class="cSw" title="启用规则四">
+          <input type="checkbox" id="modeCustom" aria-label="启用规则四：自定义词语">
+          <span></span>
+        </label>
+      </div>
+      <div class="cField">
+        <label class="cLabel" for="customNameInput">自定义昵称</label>
+        <div class="cInput">
+          <input id="customNameInput" type="text" maxlength="20" placeholder="昵称词" autocomplete="off">
+          <button id="customNameAdd" type="button" title="添加昵称词" aria-label="添加昵称词">+</button>
+        </div>
+        <div class="cChips" id="customNameChips"></div>
+      </div>
+      <div class="cField">
+        <label class="cLabel" for="customTextInput">自定义评论</label>
+        <div class="cInput">
+          <input id="customTextInput" type="text" maxlength="20" placeholder="评论词" autocomplete="off">
+          <button id="customTextAdd" type="button" title="添加评论词" aria-label="添加评论词">+</button>
+        </div>
+        <div class="cChips" id="customTextChips"></div>
+      </div>
+    </section>
+    </div>
+
     <section class="block off" id="autoBlock">
       <label class="row">
         <div class="txt">
@@ -162,13 +239,13 @@
     </section>
   </main>
 
-  <div class="notice">注意：规则二、三都选「以…开头」且组合为交集时，一条评论都不会显示。</div>
+  <div class="notice">注意：规则二、三都选「以…开头」且组合为交集、规则四又没命中时，一条评论都不会显示。</div>
   <div class="diag" id="diag">自动加载：待检测</div>
 
   <footer>
     <span id="count">正在读取本页…</span>
-    <span class="saved" id="saved">已保存</span>
-    <span class="ver" id="ver">v1.04</span>
+    <span class="saved" id="saved" role="status" aria-live="polite">已保存</span>
+    <span class="ver" id="ver">v1.06</span>
   </footer>
 
   <script src="popup.js"></script>

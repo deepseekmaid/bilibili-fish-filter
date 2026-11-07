@@ -1,12 +1,10 @@
 // ==UserScript==
 // @name         B站大肥鱼过滤器（油猴版）
 // @namespace    https://github.com/deepseekmaid/bilibili-fish-filter
-// @version      1.0.5
-// @description  白名单式 B 站评论过滤：三条规则（昵称含鱼 / 正文含 @ / 正文含主人）可独立设挡，取并集或交集。
+// @version      1.0.6
+// @description  白名单式 B 站评论过滤：四条规则（昵称含鱼 / 正文含 @ / 正文含主人 / 自定义昵称与评论词）可独立设挡，取并集或交集。
 // @homepageURL  https://github.com/deepseekmaid/bilibili-fish-filter
 // @supportURL   https://github.com/deepseekmaid/bilibili-fish-filter/issues
-// @downloadURL  https://raw.githubusercontent.com/deepseekmaid/bilibili-fish-filter/main/dist/bilibili-fish-filter.user.js
-// @updateURL    https://raw.githubusercontent.com/deepseekmaid/bilibili-fish-filter/main/dist/bilibili-fish-filter.user.js
 // @license      MIT
 // @match        https://www.bilibili.com/*
 // @match        https://t.bilibili.com/*
@@ -21,10 +19,14 @@
 /* B站大肥鱼过滤器 — content script
  * 白名单式过滤：命中的留下，其余隐藏（只改当前页面 DOM，不改任何数据）。
  *
- * 三条规则，可单独设挡：
+ * 四条规则，可单独设挡：
  *   atMode     : 规则二「正文含 @」—— 'contains' 包含 @ / 'startsWith' 以 @ 开头 / 'off' 关
  *   modeFish   : 规则一「昵称含鱼」—— true 时昵称含「鱼 / 魚」即命中
  *   masterMode : 规则三「主人」—— 'contains' 包含 / 'startsWith' 以主人开头 / 'off' 关
+ *   modeCustom : 规则四「自定义词语」—— true 时按 customCombine 组合两栏词表（单栏有词时按该栏判）
+ *   customNameWords: 昵称自定义词（最多 20 个，每个 ≤ 20 字）
+ *   customTextWords: 评论正文自定义词（同上）
+ *   customCombine: 规则四内部两栏的组合方式—— 'union'（默认，任一栏命中）/ 'intersect'（两栏都命中）
  *
  * 组合方式 combine：
  *   'union'（默认，并集）：命中任意一条即保留
@@ -39,7 +41,7 @@
 (() => {
   'use strict';
 
-  const DEFAULTS = { atMode: 'off', modeFish: true, masterMode: 'startsWith', combine: 'union', autoLoad: false, fastMode: false };
+  const DEFAULTS = { atMode: 'off', modeFish: true, masterMode: 'startsWith', combine: 'union', autoLoad: false, fastMode: false, modeCustom: false, customNameWords: [], customTextWords: [], customCombine: 'union' };
   const settings = { ...DEFAULTS };
 
   // AUTO 等常量在文件后半段才初始化，之前不能碰自动加载
@@ -60,7 +62,25 @@
 
   /* ---------------------------------------------------------------- 设置 */
 
+  function sanitizeWords(list) {
+    if (!Array.isArray(list)) return [];
+    const out = [];
+    for (const raw of list) {
+      const word = String(raw ?? '').trim();
+      if (!word || word.length > 20) continue;
+      if (!out.includes(word)) out.push(word);
+      if (out.length >= 20) break;
+    }
+    return out;
+  }
+
   function normalize(raw) {
+    const legacyWords = sanitizeWords(raw?.customWords);
+    const nameWords = sanitizeWords(raw?.customNameWords);
+    let textWords = sanitizeWords(raw?.customTextWords);
+    // 旧版只有一个 customWords 列表：仅当两栏都没有词时按评论词回填，
+    // 避免把评论词同时当成昵称词（那样会让昵称含这些词的评论被误放行）。
+    if (!nameWords.length && !textWords.length && legacyWords.length) textWords = legacyWords;
     return {
       atMode: raw?.atMode === 'contains' || raw?.atMode === 'startsWith'
         ? raw.atMode
@@ -72,6 +92,10 @@
       combine: raw?.combine === 'intersect' ? 'intersect' : 'union',
       autoLoad: raw?.autoLoad === true,
       fastMode: raw?.fastMode === true,
+      modeCustom: raw?.modeCustom === true,
+      customNameWords: nameWords,
+      customTextWords: textWords,
+      customCombine: raw?.customCombine === 'intersect' ? 'intersect' : 'union',
     };
   }
 
@@ -143,6 +167,22 @@
     if (settings.modeFish) rules.push(FISH_CHARS.some((ch) => name.includes(ch)));
     if (settings.masterMode === 'contains') rules.push(text.includes('主人'));
     else if (settings.masterMode === 'startsWith') rules.push(/^\s*主人/.test(text));
+    if (settings.modeCustom) {
+      const hitName = settings.customNameWords.length
+        && settings.customNameWords.some((word) => name.toLowerCase().includes(word.toLowerCase()));
+      const hitText = settings.customTextWords.length
+        && settings.customTextWords.some((word) => text.toLowerCase().includes(word.toLowerCase()));
+      const hasName = settings.customNameWords.length > 0;
+      const hasText = settings.customTextWords.length > 0;
+      if (hasName || hasText) {
+        // 只有一栏有词时按这一栏判；两栏都有词时按规则四自己的并/交设置判
+        const both = hasName && hasText;
+        const hit = both
+          ? (settings.customCombine === 'intersect' ? (hitName && hitText) : (hitName || hitText))
+          : (hasName ? hitName : hitText);
+        rules.push(Boolean(hit));
+      }
+    }
 
     if (!rules.length) return false;
 
@@ -1007,17 +1047,17 @@
     }
   }
 
-  const BAF_VERSION = "1.0.5";
-  const BAF_VERSION_NAME = "v1.05";
-  const PANEL_CSS = "\n  :root { color-scheme: light; }\n  * { box-sizing: border-box; }\n  .baf-popup {\n    width: 328px; margin: 0; background: #ffffff; color: #1f2329;\n    font: 13px/1.5 \"Microsoft YaHei UI\", \"PingFang SC\", \"Segoe UI\", system-ui, sans-serif;\n    -webkit-font-smoothing: antialiased;\n  }\n  header { display: flex; gap: 9px; align-items: center; padding: 10px 14px 5px; }\n  header img { width: 26px; height: 26px; border-radius: 7px; flex: 0 0 auto; }\n  h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: .2px; color: #1f2329; }\n  header p { margin: 2px 0 0; font-size: 11px; color: #8a91a0; }\n  .rulebar {\n    margin: 0 12px 5px; padding: 5px 9px; border-radius: 8px;\n    background: #f3f6ff; border: 1px solid #e3eaff;\n    font-size: 10px; line-height: 1.5; color: #55618a;\n  }\n  .rulebar b { color: #4d6bfe; font-weight: 600; }\n  .rulebar i { color: #e5484d; font-style: normal; }\n  main { padding: 0 6px 6px; }\n  .block { border-radius: 11px; border: 1px solid transparent; transition: background .16s, border-color .16s; }\n  .block + .block { margin-top: 5px; }\n  .block:hover { background: #f7f9fd; border-color: #edf1f8; }\n  .row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; }\n  .row .txt { flex: 1 1 auto; min-width: 0; }\n  .row b { display: block; font-size: 12.5px; font-weight: 600; color: #1f2329; }\n  .row code { font-size: 11px; color: #3b6fd4; background: #f3f6ff; padding: 0 3px; border-radius: 4px; }\n  .desc { display: block; margin-top: 3px; font-size: 10.5px; line-height: 1.5; color: #4b5563; }\n  input[type=checkbox] { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }\n  .sw {\n    flex: 0 0 auto; width: 40px; height: 23px; border-radius: 12px;\n    background: #d9dee8; position: relative; transition: background .18s ease;\n  }\n  .sw::after {\n    content: \"\"; position: absolute; top: 3px; left: 3px;\n    width: 17px; height: 17px; border-radius: 50%;\n    background: #ffffff; box-shadow: 0 1px 3px rgba(31, 35, 41, .18);\n    transition: transform .18s ease;\n  }\n  input:checked + .sw { background: #4d6bfe; }\n  input:checked + .sw::after { transform: translateX(17px); }\n  input:focus-visible + .sw { outline: 2px solid #4d6bfe; outline-offset: 2px; }\n  .hint { padding: 0 8px 5px; font-size: 10.5px; line-height: 1.5; color: #6b7280; }\n  .sub { display: flex; align-items: center; gap: 8px; padding: 0 8px 6px; }\n  .sub .cap { font-size: 11px; color: #6b7280; }\n  .seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 8px; background: #f2f5fa; border: 1px solid #e5eaf3; }\n  .seg button {\n    border: 0; background: transparent; color: #6b7280; cursor: pointer;\n    font: inherit; font-size: 11px; line-height: 1; padding: 5px 11px; border-radius: 6px;\n    transition: background .16s, color .16s;\n  }\n  .seg button:hover { color: #4d6bfe; }\n  .seg button.on { background: #4d6bfe; color: #ffffff; }\n  footer {\n    display: flex; align-items: center; justify-content: space-between; gap: 8px;\n    padding: 6px 14px 8px; border-top: 1px solid #eef1f6;\n    font-size: 11px; color: #6b7280;\n  }\n  .notice {\n    padding: 0 14px 4px; font-size: 10px; line-height: 1.6; color: #6b7280;\n  }\n  .diag {\n    padding: 3px 14px 0; font-size: 10px; line-height: 1.45; color: #6b7280;\n    border-top: 1px solid #eef1f6;\n  }\n  footer .saved { color: #16a34a; opacity: 0; transition: opacity .2s; }\n  footer .saved.on { opacity: 1; }\n  footer .ver { color: #9aa1ad; }";
-  const PANEL_HTML = "<header>\n    <img src=\"data:image/png;base64,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\" alt=\"\">\n    <div>\n      <h1>B站大肥鱼过滤器</h1>\n      <p>白名单：命中的留下，其余删除</p>\n    </div>\n  </header>\n\n  <div class=\"notice\">没评论可显示时会自动加载更多（不滚动页面）</div>\n\n  <main>\n    <section class=\"block\" id=\"combineBlock\">\n      <div class=\"row\">\n        <div class=\"txt\"><b>规则组合</b></div>\n        <div class=\"seg\" id=\"combineSeg\">\n          <button type=\"button\" data-combine=\"union\" class=\"on\">并集</button>\n          <button type=\"button\" data-combine=\"intersect\">交集</button>\n        </div>\n      </div>\n      <div class=\"hint\">并集：命中任一就保留；交集：三条规则全命中才保留</div>\n    </section>\n\n    <section class=\"block\" id=\"fishBlock\">\n      <label class=\"row\">\n        <div class=\"txt\">\n          <b>规则一：昵称含「鱼」</b>\n          <span class=\"desc\">只留昵称带「鱼 / 魚」的评论。<b style=\"display:inline;color:#4d6bfe;white-space:nowrap\">默认开启</b></span>\n        </div>\n        <input type=\"checkbox\" id=\"modeFish\">\n        <span class=\"sw\"></span>\n      </label>\n    </section>\n\n    <section class=\"block\" id=\"atBlock\">\n      <div class=\"row\">\n        <div class=\"txt\">\n          <b>规则二：正文含 @</b>\n          <span class=\"desc\">带 <code>@</code> 的评论留下。</span>\n        </div>\n      </div>\n      <div class=\"sub\">\n        <div class=\"seg\" id=\"atSeg\">\n          <button type=\"button\" data-mode=\"contains\">包含 @</button>\n          <button type=\"button\" data-mode=\"startsWith\">以 @ 开头</button>\n          <button type=\"button\" data-mode=\"off\" class=\"on\">关</button>\n        </div>\n      </div>\n    </section>\n\n    <section class=\"block\" id=\"masterBlock\">\n      <div class=\"row\">\n        <div class=\"txt\">\n          <b>规则三：「主人」</b>\n          <span class=\"desc\">正文提到「主人」也留下。</span>\n        </div>\n      </div>\n      <div class=\"sub\">\n        <div class=\"seg\" id=\"masterSeg\">\n          <button type=\"button\" data-mode=\"contains\">包含主人</button>\n          <button type=\"button\" data-mode=\"startsWith\" class=\"on\">以主人开头</button>\n          <button type=\"button\" data-mode=\"off\">关</button>\n        </div>\n      </div>\n    </section>\n\n    <section class=\"block off\" id=\"autoBlock\">\n      <label class=\"row\">\n        <div class=\"txt\">\n          <b>一直加载到底</b>\n          <span class=\"desc\">不管有没有可显示的评论，都加载到全部加载完。</span>\n        </div>\n        <input type=\"checkbox\" id=\"autoLoad\">\n        <span class=\"sw\"></span>\n      </label>\n    </section>\n\n    <section class=\"block off\" id=\"fastBlock\">\n      <label class=\"row\">\n        <div class=\"txt\">\n          <b>快速模式</b>\n          <span class=\"desc\">加载时不逐页过滤、请求零等待；可能短暂露出未过滤评论。</span>\n        </div>\n        <input type=\"checkbox\" id=\"fastMode\">\n        <span class=\"sw\"></span>\n      </label>\n    </section>\n  </main>\n\n  <div class=\"notice\">注意：规则二、三都选「以…开头」且组合为交集时，一条评论都不会显示。</div>\n  <div class=\"diag\" id=\"diag\">自动加载：待检测</div>\n\n  <footer>\n    <span id=\"count\">正在读取本页…</span>\n    <span class=\"saved\" id=\"saved\">已保存</span>\n    <span class=\"ver\" id=\"ver\">v1.04</span>\n  </footer>";
-  const BAF_DISPLAY_VERSION = "1.05";
+  const BAF_VERSION = "1.0.6";
+  const BAF_VERSION_NAME = "v1.06";
+  const PANEL_CSS = "\n  :root { color-scheme: light; }\n  * { box-sizing: border-box; }\n  .baf-popup {\n    width: 328px; margin: 0; background: #ffffff; color: #1f2329;\n    font: 13px/1.5 \"Microsoft YaHei UI\", \"PingFang SC\", \"Segoe UI\", system-ui, sans-serif;\n    -webkit-font-smoothing: antialiased;\n  }\n  header { display: flex; gap: 9px; align-items: center; padding: 10px 14px 5px; }\n  header img { width: 26px; height: 26px; border-radius: 7px; flex: 0 0 auto; }\n  h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: .2px; color: #1f2329; }\n  header p { margin: 2px 0 0; font-size: 11px; color: #8a91a0; }\n  .rulebar {\n    margin: 0 12px 5px; padding: 5px 9px; border-radius: 8px;\n    background: #f3f6ff; border: 1px solid #e3eaff;\n    font-size: 10px; line-height: 1.5; color: #55618a;\n  }\n  .rulebar b { color: #4d6bfe; font-weight: 600; }\n  .rulebar i { color: #e5484d; font-style: normal; }\n  main { padding: 0 6px 6px; }\n  .block { border-radius: 11px; border: 1px solid transparent; transition: background .16s, border-color .16s; }\n  .block + .block { margin-top: 5px; }\n  .block:not(.custom):hover { background: #f7f9fd; border-color: #edf1f8; }\n  .row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; }\n  .row .txt { flex: 1 1 auto; min-width: 0; }\n  .row b { display: block; font-size: 12.5px; font-weight: 600; color: #1f2329; }\n  .row code { font-size: 11px; color: #3b6fd4; background: #f3f6ff; padding: 0 3px; border-radius: 4px; }\n  .desc { display: block; margin-top: 3px; font-size: 10.5px; line-height: 1.5; color: #4b5563; }\n  input[type=checkbox] { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }\n  .sw {\n    flex: 0 0 auto; width: 40px; height: 23px; border-radius: 12px;\n    background: #d9dee8; position: relative; transition: background .18s ease;\n  }\n  .sw::after {\n    content: \"\"; position: absolute; top: 3px; left: 3px;\n    width: 17px; height: 17px; border-radius: 50%;\n    background: #ffffff; box-shadow: 0 1px 3px rgba(31, 35, 41, .18);\n    transition: transform .18s ease;\n  }\n  input:checked + .sw { background: #4d6bfe; }\n  input:checked + .sw::after { transform: translateX(17px); }\n  input:focus-visible + .sw { outline: 2px solid #4d6bfe; outline-offset: 2px; }\n  .hint { padding: 0 8px 5px; font-size: 10.5px; line-height: 1.5; color: #6b7280; }\n  .sub { display: flex; align-items: center; gap: 8px; padding: 0 8px 6px; }\n  .sub .cap { font-size: 11px; color: #6b7280; }\n  .seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 8px; background: #f2f5fa; border: 1px solid #e5eaf3; }\n  .seg button {\n    border: 0; background: transparent; color: #6b7280; cursor: pointer;\n    font: inherit; font-size: 11px; line-height: 1; padding: 5px 11px; border-radius: 6px;\n    transition: background .16s, color .16s;\n  }\n  .seg button:hover { color: #4d6bfe; }\n  .seg button.on { background: #4d6bfe; color: #ffffff; }\n  .rulesWrap { position: relative; }\n  .block.off { opacity: .58; }\n  .custom {\n    position: absolute; right: 6px; top: 1px; width: 112px; height: 168px; margin-top: 0;\n    display: flex; flex-direction: column; gap: 4px;\n    padding: 5px 6px; border-radius: 10px; border: 1px solid #e3eaff;\n    background: linear-gradient(180deg, #fbfcff 0%, #f4f7ff 100%);\n    transition: opacity .16s ease, border-color .16s ease;\n  }\n  .custom.off { opacity: .62; }\n  .cHead { display: flex; align-items: center; justify-content: space-between; gap: 4px; }\n  .cHead b { font-size: 10px; font-weight: 600; color: #1f2329; white-space: nowrap; }\n  .cSeg { display: inline-flex; gap: 1px; padding: 1px; border-radius: 5px; background: #eef2fb; border: 1px solid #dfe6f6; }\n  .cSeg button { border: 0; background: transparent; font: inherit; font-size: 9px; line-height: 1; padding: 2px 3px; border-radius: 4px; color: #6b7280; cursor: pointer; }\n  .cSeg button.on { background: #4d6bfe; color: #fff; }\n  .cHead { gap: 2px; }\n  .cSw { position: relative; display: inline-flex; width: 28px; height: 16px; cursor: pointer; flex: 0 0 auto; }\n  .cSw input { position: absolute; opacity: 0; width: 0; height: 0; }\n  .cSw span { width: 28px; height: 16px; border-radius: 9px; background: #d9dee8; position: relative; transition: background .18s ease; }\n  .cSw span::after { content: \"\"; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(31,35,41,.2); transition: transform .18s ease; }\n  .cSw input:checked + span { background: #4d6bfe; }\n  .cSw input:checked + span::after { transform: translateX(12px); }\n  .cSw input:focus-visible + span { outline: 2px solid #4d6bfe; outline-offset: 2px; }\n  .cField { display: flex; flex-direction: column; gap: 2px; }\n  .cLabel { font-size: 9px; line-height: 1.2; color: #6b7280; }\n  .cInput { display: flex; gap: 3px; }\n  .cInput input {\n    flex: 1 1 auto; min-width: 0; height: 20px; padding: 0 4px;\n    border: 1px solid #dbe3f5; border-radius: 5px; background: #fff;\n    font: inherit; font-size: 10px; color: #1f2329; outline: none;\n  }\n  .cInput input:focus { border-color: #4d6bfe; box-shadow: 0 0 0 2px rgba(77,107,254,.12); }\n  .cInput button {\n    flex: 0 0 auto; width: 20px; height: 20px; border: 0; border-radius: 5px;\n    background: #4d6bfe; color: #fff; font-size: 13px; line-height: 1; cursor: pointer; padding: 0;\n  }\n  .cInput button:disabled { background: #c9d3ee; cursor: default; }\n  .cChips { flex: 0 0 auto; max-height: 30px; overflow-y: auto; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 2px; }\n  .cChips::-webkit-scrollbar { width: 3px; }\n  .cChips::-webkit-scrollbar-thumb { background: #d8e0f2; border-radius: 2px; }\n  .cChip { display: inline-flex; align-items: center; gap: 1px; max-width: 100%; padding: 0 3px; border-radius: 4px; border: 1px solid #dfe6f6; background: #fff; font-size: 9.5px; line-height: 1.45; color: #33415c; }\n  .cChip em { font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 68px; }\n  .cChip button { border: 0; background: transparent; color: #9aa1ad; font-size: 10px; line-height: 1; padding: 0; cursor: pointer; }\n  .cChip button:hover { color: #e5484d; }\n  footer {\n    display: flex; align-items: center; justify-content: space-between; gap: 8px;\n    padding: 6px 14px 8px; border-top: 1px solid #eef1f6;\n    font-size: 11px; color: #6b7280;\n  }\n  .notice {\n    padding: 0 14px 4px; font-size: 10px; line-height: 1.6; color: #6b7280;\n  }\n  .diag {\n    padding: 3px 14px 0; font-size: 10px; line-height: 1.45; color: #6b7280;\n    border-top: 1px solid #eef1f6;\n  }\n  footer .saved { color: #16a34a; opacity: 0; transition: opacity .2s; }\n  footer .saved.err { color: #e5484d; }\n  footer .saved.on { opacity: 1; }\n  footer .ver { color: #9aa1ad; }";
+  const PANEL_HTML = "<header>\n    <img src=\"data:image/png;base64,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\" alt=\"\">\n    <div>\n      <h1>B站大肥鱼过滤器</h1>\n      <p>白名单：命中的留下，其余删除</p>\n    </div>\n  </header>\n\n  <div class=\"notice\">没评论可显示时会自动加载更多（不滚动页面）</div>\n\n  <main>\n    <section class=\"block\" id=\"combineBlock\">\n      <div class=\"row\">\n        <div class=\"txt\"><b>规则组合</b></div>\n        <div class=\"seg\" id=\"combineSeg\">\n          <button type=\"button\" data-combine=\"union\" class=\"on\">并集</button>\n          <button type=\"button\" data-combine=\"intersect\">交集</button>\n        </div>\n      </div>\n      <div class=\"hint\">并集：命中任一就保留；交集：所有启用的规则都命中才保留</div>\n    </section>\n\n    <section class=\"block\" id=\"fishBlock\">\n      <label class=\"row\">\n        <div class=\"txt\">\n          <b>规则一：昵称含「鱼」</b>\n          <span class=\"desc\">只留昵称带「鱼 / 魚」的评论。<b style=\"display:inline;color:#4d6bfe;white-space:nowrap\">默认开启</b></span>\n        </div>\n        <input type=\"checkbox\" id=\"modeFish\">\n        <span class=\"sw\"></span>\n      </label>\n    </section>\n\n    <div class=\"rulesWrap\">\n    <section class=\"block\" id=\"atBlock\">\n      <div class=\"row\">\n        <div class=\"txt\">\n          <b>规则二：正文含 @</b>\n          <span class=\"desc\">带 <code>@</code> 的评论留下。</span>\n        </div>\n      </div>\n      <div class=\"sub\">\n        <div class=\"seg\" id=\"atSeg\">\n          <button type=\"button\" data-mode=\"contains\">包含 @</button>\n          <button type=\"button\" data-mode=\"startsWith\">以 @ 开头</button>\n          <button type=\"button\" data-mode=\"off\" class=\"on\">关</button>\n        </div>\n      </div>\n    </section>\n\n    <section class=\"block\" id=\"masterBlock\">\n      <div class=\"row\">\n        <div class=\"txt\">\n          <b>规则三：「主人」</b>\n          <span class=\"desc\">正文提到「主人」也留下。</span>\n        </div>\n      </div>\n      <div class=\"sub\">\n        <div class=\"seg\" id=\"masterSeg\">\n          <button type=\"button\" data-mode=\"contains\">包含主人</button>\n          <button type=\"button\" data-mode=\"startsWith\" class=\"on\">以主人开头</button>\n          <button type=\"button\" data-mode=\"off\">关</button>\n        </div>\n      </div>\n    </section>\n\n    <section class=\"block custom off\" id=\"customBlock\" aria-label=\"规则四：自定义昵称与评论词\">\n      <div class=\"cHead\">\n        <b>规则四</b>\n        <div class=\"cSeg\" id=\"customCombineSeg\" title=\"规则四内部：昵称栏与评论栏如何组合\">\n          <button type=\"button\" data-ccombine=\"union\" class=\"on\" aria-label=\"规则四：两栏任一命中\">并</button>\n          <button type=\"button\" data-ccombine=\"intersect\" aria-label=\"规则四：两栏都命中\">交</button>\n        </div>\n        <label class=\"cSw\" title=\"启用规则四\">\n          <input type=\"checkbox\" id=\"modeCustom\" aria-label=\"启用规则四：自定义词语\">\n          <span></span>\n        </label>\n      </div>\n      <div class=\"cField\">\n        <label class=\"cLabel\" for=\"customNameInput\">自定义昵称</label>\n        <div class=\"cInput\">\n          <input id=\"customNameInput\" type=\"text\" maxlength=\"20\" placeholder=\"昵称词\" autocomplete=\"off\">\n          <button id=\"customNameAdd\" type=\"button\" title=\"添加昵称词\" aria-label=\"添加昵称词\">+</button>\n        </div>\n        <div class=\"cChips\" id=\"customNameChips\"></div>\n      </div>\n      <div class=\"cField\">\n        <label class=\"cLabel\" for=\"customTextInput\">自定义评论</label>\n        <div class=\"cInput\">\n          <input id=\"customTextInput\" type=\"text\" maxlength=\"20\" placeholder=\"评论词\" autocomplete=\"off\">\n          <button id=\"customTextAdd\" type=\"button\" title=\"添加评论词\" aria-label=\"添加评论词\">+</button>\n        </div>\n        <div class=\"cChips\" id=\"customTextChips\"></div>\n      </div>\n    </section>\n    </div>\n\n    <section class=\"block off\" id=\"autoBlock\">\n      <label class=\"row\">\n        <div class=\"txt\">\n          <b>一直加载到底</b>\n          <span class=\"desc\">不管有没有可显示的评论，都加载到全部加载完。</span>\n        </div>\n        <input type=\"checkbox\" id=\"autoLoad\">\n        <span class=\"sw\"></span>\n      </label>\n    </section>\n\n    <section class=\"block off\" id=\"fastBlock\">\n      <label class=\"row\">\n        <div class=\"txt\">\n          <b>快速模式</b>\n          <span class=\"desc\">加载时不逐页过滤、请求零等待；可能短暂露出未过滤评论。</span>\n        </div>\n        <input type=\"checkbox\" id=\"fastMode\">\n        <span class=\"sw\"></span>\n      </label>\n    </section>\n  </main>\n\n  <div class=\"notice\">注意：规则二、三都选「以…开头」且组合为交集、规则四又没命中时，一条评论都不会显示。</div>\n  <div class=\"diag\" id=\"diag\">自动加载：待检测</div>\n\n  <footer>\n    <span id=\"count\">正在读取本页…</span>\n    <span class=\"saved\" id=\"saved\" role=\"status\" aria-live=\"polite\">已保存</span>\n    <span class=\"ver\" id=\"ver\">v1.06</span>\n  </footer>";
+  const BAF_DISPLAY_VERSION = "1.06";
   const FAB_ICON = "data:image/webp;base64,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";
 
   /* ===== 下面是 popup.js 原文，作为函数体在面板里运行 ===== */
   function bafPopupMain(chrome, document, globalThis) {
 /* B站大肥鱼过滤器 — 设置面板 */
-const DEFAULTS = { atMode: 'off', modeFish: true, masterMode: 'startsWith', combine: 'union', autoLoad: false, fastMode: false };
+const DEFAULTS = { atMode: 'off', modeFish: true, masterMode: 'startsWith', combine: 'union', autoLoad: false, fastMode: false, modeCustom: false, customNameWords: [], customTextWords: [], customCombine: 'union' };
 
 const fish = document.getElementById('modeFish');
 const auto = document.getElementById('autoLoad');
@@ -1032,28 +1072,136 @@ const saved = document.getElementById('saved');
 const count = document.getElementById('count');
 const diag = document.getElementById('diag');
 const ver = document.getElementById('ver');
+const customBox = document.getElementById('modeCustom');
+const customBlock = document.getElementById('customBlock');
+const customCombineSeg = document.getElementById('customCombineSeg');
+const customNameInput = document.getElementById('customNameInput');
+const customNameAdd = document.getElementById('customNameAdd');
+const customNameChips = document.getElementById('customNameChips');
+const customTextInput = document.getElementById('customTextInput');
+const customTextAdd = document.getElementById('customTextAdd');
+const customTextChips = document.getElementById('customTextChips');
+
+const LISTS = {
+  name: {
+    get: () => customNameWords,
+    set: (next) => { customNameWords = next; },
+    input: customNameInput,
+    add: customNameAdd,
+    chips: customNameChips,
+    render: () => renderChips(customNameWords, customNameChips),
+  },
+  text: {
+    get: () => customTextWords,
+    set: (next) => { customTextWords = next; },
+    input: customTextInput,
+    add: customTextAdd,
+    chips: customTextChips,
+    render: () => renderChips(customTextWords, customTextChips),
+  },
+};
 
 let timer = null;
 let atMode = DEFAULTS.atMode;
 let combine = DEFAULTS.combine;
 let masterMode = DEFAULTS.masterMode;
+let customNameWords = [];
+let customTextWords = [];
+let customCombine = DEFAULTS.customCombine;
 
 try {
   const m = chrome.runtime.getManifest();
   ver.textContent = m.version_name || 'v' + m.version;
 } catch {}
 
-function flash() {
+function flash(error) {
+  if (!saved) return;
+  saved.textContent = error ? '保存失败' : '已保存';
+  saved.classList.toggle('err', Boolean(error));
   saved.classList.add('on');
   clearTimeout(timer);
-  timer = setTimeout(() => saved.classList.remove('on'), 1200);
+  timer = setTimeout(() => saved.classList.remove('on'), error ? 2000 : 1200);
 }
 
 function paintSeg(seg, value) {
   if (!seg) return;
   for (const btn of seg.querySelectorAll('button')) {
     const key = btn.dataset.mode || btn.dataset.combine;
-    btn.classList.toggle('on', key === value);
+    const on = key === value;
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-pressed', String(on));
+  }
+}
+
+function sanitizeWords(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const raw of list) {
+    const word = String(raw ?? '').trim();
+    if (!word || word.length > 20) continue;
+    if (!out.includes(word)) out.push(word);
+    if (out.length >= 20) break;
+  }
+  return out;
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+}
+
+function renderChips(words, container) {
+  if (!container) return;
+  // 重绘会重置滚动位置；删一个词后别把用户甩回列表顶部
+  const scrollTop = container.scrollTop;
+  container.innerHTML = words.map((word, index) =>
+    '<span class="cChip"><em>' + escapeHtml(word) + '</em>'
+    + '<button type="button" data-index="' + index + '" title="删除「' + escapeHtml(word) + '」" aria-label="删除「' + escapeHtml(word) + '」">×</button></span>'
+  ).join('');
+  container.scrollTop = scrollTop;
+}
+
+function renderAllChips() {
+  renderChips(customNameWords, customNameChips);
+  renderChips(customTextWords, customTextChips);
+}
+
+function addWord(kind) {
+  const entry = LISTS[kind];
+  if (!entry || !entry.input) return;
+  const word = entry.input.value.trim();
+  const words = entry.get();
+  if (!word || word.length > 20) return;
+  // 到上限时保留输入框内容，别把用户刚打的词静默吞掉
+  if (words.length >= 20) return;
+  if (!words.includes(word)) {
+    entry.set(words.concat(word));
+    entry.render();
+    syncAddButtons();
+    persist({ [kind === 'name' ? 'customNameWords' : 'customTextWords']: entry.get() });
+  }
+  entry.input.value = '';
+}
+
+function removeWord(kind, index) {
+  const entry = LISTS[kind];
+  if (!entry) return;
+  entry.set(entry.get().filter((_, i) => i !== index));
+  entry.render();
+  syncAddButtons();
+  persist({ [kind === 'name' ? 'customNameWords' : 'customTextWords']: entry.get() });
+}
+
+function syncAddButtons() {
+  if (customNameAdd) customNameAdd.disabled = customNameWords.length >= 20;
+  if (customTextAdd) customTextAdd.disabled = customTextWords.length >= 20;
+}
+
+function paintCustomSeg() {
+  if (!customCombineSeg) return;
+  for (const btn of customCombineSeg.querySelectorAll('button')) {
+    const on = btn.dataset.ccombine === customCombine;
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-pressed', String(on));
   }
 }
 
@@ -1064,18 +1212,42 @@ function paint() {
   paintSeg(combineSeg, combine);
   paintSeg(atSeg, atMode);
   paintSeg(masterSeg, masterMode);
+  paintCustomSeg();
+  if (customBox && customBlock) {
+    customBlock.classList.toggle('off', !customBox.checked);
+  }
+  syncAddButtons();
 }
 
-function persist() {
-  chrome.storage.sync.set({
+function persist(patch) {
+  // 只写本次真正改动的键：一次把所有键（尤其两个词表）写回，会用本窗口的旧值
+  // 覆盖另一个窗口/另一台设备刚加的词语。
+  const payload = patch || {
     combine,
     atMode,
     modeFish: fish.checked,
     masterMode,
     autoLoad: auto.checked,
     fastMode: fast.checked,
-  }, () => {
-    flash();
+    modeCustom: customBox ? customBox.checked : false,
+    customNameWords,
+    customTextWords,
+    customCombine,
+  };
+  chrome.storage.sync.set(payload, () => {
+    // 写入失败时别假装已保存：内容脚本收不到变更，用户会以为规则生效了
+    if (chrome.runtime && chrome.runtime.lastError) {
+      flash(true);
+      return;
+    }
+    // 词表一旦由新字段接管，就清掉旧版 customWords；否则用户把词删光后，
+    // 下次加载 normalize 会以为「两栏都空 = 还没迁移」，把旧词又回填进评论栏。
+    if (patch && ('customNameWords' in patch || 'customTextWords' in patch)) {
+      try {
+        chrome.storage.sync.remove?.('customWords', () => { void chrome.runtime.lastError; });
+      } catch { /* 旧字段不存在或环境不支持 */ }
+    }
+    flash(false);
     readCount();
   });
 }
@@ -1108,19 +1280,44 @@ function readCount() {
   });
 }
 
-function bindSeg(seg, apply) {
+function bindSeg(seg, key, apply) {
   if (!seg) return;
   seg.addEventListener('click', (event) => {
     const btn = event.target.closest('button[data-mode]');
     if (!btn) return;
     apply(btn.dataset.mode);
     paint();
-    persist();
+    persist({ [key]: btn.dataset.mode });
   });
+}
+
+function bindCustom() {
+  for (const kind of ['name', 'text']) {
+    const entry = LISTS[kind];
+    if (entry.add) entry.add.addEventListener('click', () => addWord(kind));
+    if (entry.input) {
+      entry.input.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        // 中文输入法选词时按 Enter 只是上屏，不能当成「添加」
+        if (event.isComposing || event.keyCode === 229) return;
+        event.preventDefault();
+        addWord(kind);
+      });
+    }
+    if (entry.chips) {
+      entry.chips.addEventListener('click', (event) => {
+        const btn = event.target.closest('button[data-index]');
+        if (!btn) return;
+        removeWord(kind, Number(btn.dataset.index));
+      });
+    }
+  }
 }
 
 if (globalThis.chrome?.storage?.sync) {
   chrome.storage.sync.get(DEFAULTS, (value) => {
+    // 读取失败时回调可能拿到 undefined：按默认值渲染，别让面板白屏
+    value = value || {};
     fish.checked = value.modeFish !== false;
     auto.checked = value.autoLoad === true;
     fast.checked = value.fastMode === true;
@@ -1132,14 +1329,23 @@ if (globalThis.chrome?.storage?.sync) {
         ? 'contains'
         : 'off';
     masterMode = value.masterMode === 'contains' || value.masterMode === 'off' ? value.masterMode : 'startsWith';
+    if (customBox) customBox.checked = value.modeCustom === true;
+    customNameWords = sanitizeWords(value.customNameWords);
+    customTextWords = sanitizeWords(value.customTextWords);
+    if (!customNameWords.length && !customTextWords.length) {
+      customTextWords = sanitizeWords(value.customWords);
+    }
+    customCombine = value.customCombine === 'intersect' ? 'intersect' : 'union';
+    renderAllChips();
     paint();
     readCount();
   });
 
-  for (const box of [fish, auto, fast]) {
+  const SWITCH_KEYS = new Map([[fish, 'modeFish'], [auto, 'autoLoad'], [fast, 'fastMode'], [customBox, 'modeCustom']]);
+  for (const box of [fish, auto, fast, customBox].filter(Boolean)) {
     box.addEventListener('change', () => {
       paint();
-      persist();
+      persist({ [SWITCH_KEYS.get(box)]: box.checked });
     });
   }
 
@@ -1149,16 +1355,26 @@ if (globalThis.chrome?.storage?.sync) {
       if (!btn) return;
       combine = btn.dataset.combine === 'intersect' ? 'intersect' : 'union';
       paint();
-      persist();
+      persist({ combine });
     });
   }
 
-  bindSeg(atSeg, (next) => {
+  bindSeg(atSeg, 'atMode', (next) => {
     atMode = next === 'contains' || next === 'startsWith' ? next : 'off';
   });
-  bindSeg(masterSeg, (next) => {
+  bindSeg(masterSeg, 'masterMode', (next) => {
     masterMode = next === 'contains' || next === 'off' ? next : 'startsWith';
   });
+  bindCustom();
+  if (customCombineSeg) {
+    customCombineSeg.addEventListener('click', (event) => {
+      const btn = event.target.closest('button[data-ccombine]');
+      if (!btn) return;
+      customCombine = btn.dataset.ccombine === 'intersect' ? 'intersect' : 'union';
+      paint();
+      persist({ customCombine });
+    });
+  }
 } else {
   // 脱离扩展环境（例如直接预览 popup.html）时按默认值渲染
   fish.checked = DEFAULTS.modeFish;
@@ -1167,6 +1383,11 @@ if (globalThis.chrome?.storage?.sync) {
   combine = DEFAULTS.combine;
   atMode = DEFAULTS.atMode;
   masterMode = DEFAULTS.masterMode;
+  if (customBox) customBox.checked = DEFAULTS.modeCustom;
+  customNameWords = DEFAULTS.customNameWords.slice();
+  customTextWords = DEFAULTS.customTextWords.slice();
+  customCombine = DEFAULTS.customCombine;
+  renderAllChips();
   paint();
   count.textContent = '预览模式';
 }
