@@ -53,7 +53,7 @@
 
 ### Chrome / Edge 扩展
 
-1. 下载 [`B站大肥鱼过滤器-v1.06.zip`](https://github.com/deepseekmaid/bilibili-fish-filter/releases/latest) 并解压；
+1. 下载 [`bilibili-fish-filter-v1.06.zip`](https://github.com/deepseekmaid/bilibili-fish-filter/releases/latest) 并解压；
 2. 打开 `chrome://extensions`（Edge 为 `edge://extensions`），右上角开启「开发者模式」；
 3. 点「加载已解压的扩展程序」，选择解压出的 `bilibili-fish-filter/` 目录；
 4. 刷新已打开的 B 站页面。
