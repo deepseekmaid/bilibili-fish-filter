@@ -1,5 +1,10 @@
 /* B站大肥鱼过滤器 — content script
- * 白名单式过滤：命中的留下，其余隐藏（只改当前页面 DOM，不改任何数据）。
+ * 过滤评论：默认白名单（命中的留下，其余隐藏），可切黑名单（命中的隐藏，其余保留）。
+ * 只改当前页面 DOM，不改任何数据。
+ *
+ * 过滤方式 filterMode：
+ *   'whitelist'（默认，白名单）：命中的留下，其余隐藏
+ *   'blacklist'（黑名单）：命中的隐藏，其余保留
  *
  * 四条规则，可单独设挡：
  *   atMode     : 规则二「正文含 @」—— 'contains' 包含 @ / 'startsWith' 以 @ 开头 / 'off' 关
@@ -23,7 +28,7 @@
 (() => {
   'use strict';
 
-  const DEFAULTS = { atMode: 'off', modeFish: true, masterMode: 'startsWith', combine: 'union', autoLoad: false, fastMode: false, modeCustom: false, customNameWords: [], customTextWords: [], customCombine: 'union' };
+  const DEFAULTS = { filterMode: 'whitelist', atMode: 'off', modeFish: true, masterMode: 'startsWith', combine: 'union', autoLoad: false, fastMode: false, modeCustom: false, customNameWords: [], customTextWords: [], customCombine: 'union' };
   const settings = { ...DEFAULTS };
 
   // AUTO 等常量在文件后半段才初始化，之前不能碰自动加载
@@ -64,6 +69,7 @@
     // 避免把评论词同时当成昵称词（那样会让昵称含这些词的评论被误放行）。
     if (!nameWords.length && !textWords.length && legacyWords.length) textWords = legacyWords;
     return {
+      filterMode: raw?.filterMode === 'blacklist' ? 'blacklist' : 'whitelist',
       atMode: raw?.atMode === 'contains' || raw?.atMode === 'startsWith'
         ? raw.atMode
         : raw?.modeAt === true
@@ -95,6 +101,10 @@
       chrome.storage.onChanged.addListener((changes, area) => {
         if (area !== 'sync') return;
         let touched = false;
+        if (changes.filterMode) {
+          settings.filterMode = changes.filterMode.newValue === 'blacklist' ? 'blacklist' : 'whitelist';
+          touched = true;
+        }
         if (changes.atMode) {
           const next = changes.atMode.newValue;
           settings.atMode = next === 'contains' || next === 'startsWith' ? next : 'off';
@@ -242,9 +252,11 @@
 
     if (!rules.length) return false;
 
-    // 白名单：并集 = 任一条命中就保留；交集 = 全部命中才保留
-    const keep = settings.combine === 'intersect' ? rules.every(Boolean) : rules.some(Boolean);
-    return !keep;
+    // combine 只决定「规则算不算命中」；命中之后是保留还是隐藏由 filterMode 决定。
+    // 白名单：并集 = 任一条命中就保留，交集 = 全部命中才保留；
+    // 黑名单：并集 = 任一条命中就隐藏，交集 = 全部命中才隐藏。
+    const hit = settings.combine === 'intersect' ? rules.every(Boolean) : rules.some(Boolean);
+    return settings.filterMode === 'blacklist' ? hit : !hit;
   }
 
   function legacyVerdict(item) {

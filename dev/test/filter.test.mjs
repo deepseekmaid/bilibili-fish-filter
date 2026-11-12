@@ -47,7 +47,7 @@ function comment(doc, spec, reply) {
   return renderer;
 }
 
-function boot({ modeAt, modeFish, masterMode, atMode, combine, modeCustom, customNameWords, customTextWords, customCombine, legacyCustomWords }) {
+function boot({ modeAt, modeFish, masterMode, atMode, combine, modeCustom, customNameWords, customTextWords, customCombine, legacyCustomWords, filterMode }) {
   const dom = new JSDOM('<!doctype html><html><body><div id="stage"></div></body></html>', {
     url: 'https://www.bilibili.com/video/BV1xx',
     pretendToBeVisual: true,
@@ -60,6 +60,7 @@ function boot({ modeAt, modeFish, masterMode, atMode, combine, modeCustom, custo
   window.chrome = {
     storage: {
       sync: { get: (defaults, cb) => cb({
+        filterMode: filterMode === 'blacklist' ? 'blacklist' : 'whitelist',
         atMode: atMode || (modeAt === true ? 'contains' : modeAt === false ? 'off' : 'off'),
         modeFish,
         masterMode: masterMode || 'startsWith',
@@ -1202,6 +1203,97 @@ test('规则四：内部并/交与全局并/交是两层，互不覆盖', async 
     assert.equal(state(env.refs['fish-replytag']), 'show', '昵称命中昵称栏 → 内部并命中，全局交集保留');
     assert.equal(state(env.refs['custom-hit']), 'hide', '内部并命中（正文）但规则一未命中 → 全局交集隐藏');
     assert.equal(state(env.refs.neither), 'hide');
+  } finally {
+    env.window.close();
+  }
+});
+
+test('黑名单：只隐藏昵称带鱼的评论，其余保留', async () => {
+  const env = boot({ modeFish: true, masterMode: 'off', filterMode: 'blacklist' });
+  try {
+    await sleep(250);
+    expectAll(env.refs, {
+      'fish-plain': 'hide',
+      'fish-replytag': 'hide',
+      both: 'hide',
+      'at-mid': 'show',
+      neither: 'show',
+      'reply-only': 'show',
+      'reply-loose': 'show',
+    });
+    assert.equal(state(env.refs['fish-plain#thread']), 'hide', '命中的整楼应连带收起');
+    assert.equal(state(env.refs['at-mid#thread']), 'show', '未命中的楼层应保持展开');
+  } finally {
+    env.window.close();
+  }
+});
+
+test('黑名单 + 交集：所有启用的规则都命中才隐藏', async () => {
+  const env = boot({ atMode: 'contains', modeFish: true, masterMode: 'off', combine: 'intersect', filterMode: 'blacklist' });
+  try {
+    await sleep(250);
+    expectAll(env.refs, {
+      'fish-replytag': 'hide',
+      both: 'hide',
+      'fish-plain': 'show', // 只有昵称命中，交集不成立
+      'at-mid': 'show', // 只有正文命中
+      neither: 'show',
+      'reply-only': 'show',
+      'reply-loose': 'show',
+    });
+  } finally {
+    env.window.close();
+  }
+});
+
+test('黑名单：规则全关时同样不过滤', async () => {
+  const env = boot({ modeFish: false, masterMode: 'off', atMode: 'off', filterMode: 'blacklist' });
+  try {
+    await sleep(250);
+    expectAll(env.refs, {
+      'fish-plain': 'show',
+      'fish-replytag': 'show',
+      'at-mid': 'show',
+      neither: 'show',
+      'reply-only': 'show',
+      'reply-loose': 'show',
+      both: 'show',
+    });
+  } finally {
+    env.window.close();
+  }
+});
+
+test('黑名单：解析失败保护仍然生效（取不到正文和昵称时不误删）', async () => {
+  const env = boot({ modeFish: true, masterMode: 'off', filterMode: 'blacklist' });
+  try {
+    await sleep(250);
+    // 换成一个没有 shadowRoot 的渲染器：textOf / nameOf 都拿不到内容
+    const broken = env.doc.createElement('bili-comment-renderer');
+    const thread = env.doc.createElement('bili-comment-thread-renderer');
+    thread.attachShadow({ mode: 'open' }).appendChild(broken);
+    env.stage.appendChild(thread);
+    await sleep(300);
+    assert.equal(state(broken), 'show', '黑名单下解析失败也不能误删');
+    assert.equal(state(thread), 'show');
+  } finally {
+    env.window.close();
+  }
+});
+
+test('黑名单：storage 热切换即时生效并还原', async () => {
+  const env = boot({ modeFish: true, masterMode: 'off' });
+  try {
+    await sleep(250);
+    assert.equal(state(env.refs['at-mid']), 'hide', '白名单下未命中的隐藏');
+    env.listeners[0]({ filterMode: { newValue: 'blacklist' } }, 'sync');
+    await sleep(350);
+    assert.equal(state(env.refs['fish-plain']), 'hide', '黑名单下命中的隐藏');
+    assert.equal(state(env.refs['at-mid']), 'show', '黑名单下未命中的保留');
+    env.listeners[0]({ filterMode: { newValue: 'whitelist' } }, 'sync');
+    await sleep(350);
+    assert.equal(state(env.refs['fish-plain']), 'show', '切回白名单后应还原');
+    assert.equal(state(env.refs['at-mid']), 'hide');
   } finally {
     env.window.close();
   }
