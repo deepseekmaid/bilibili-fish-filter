@@ -41,7 +41,10 @@ function loadPopup(stored, options = {}) {
   return { window, doc: window.document, writes, removed };
 }
 
-const activeSeg = (doc, id) => doc.querySelector('#' + id + ' button.on')?.dataset.mode || doc.querySelector('#' + id + ' button.on')?.dataset.combine;
+const activeSeg = (doc, id) => {
+  const btn = doc.querySelector('#' + id + ' button.on');
+  return btn?.dataset.mode || btn?.dataset.combine || btn?.dataset.filter;
+};
 
 test('面板：旧版 modeAt:true 显示为「包含 @」', () => {
   const { window, doc } = loadPopup({ modeAt: true });
@@ -305,6 +308,56 @@ test('规则四：存储写入失败时提示「保存失败」而不是假装�
     assert.equal(saved.textContent, '保存失败');
     assert.equal(saved.classList.contains('err'), true);
     assert.equal(saved.classList.contains('on'), true);
+  } finally {
+    window.close();
+  }
+});
+
+test('面板：默认过滤方式为「保留命中」（白名单）', () => {
+  const { window, doc } = loadPopup({});
+  try {
+    assert.equal(activeSeg(doc, 'filterSeg'), 'whitelist');
+    assert.match(doc.getElementById('subtitle').textContent, /白名单/);
+    assert.match(doc.getElementById('combineHint').textContent, /保留/);
+  } finally {
+    window.close();
+  }
+});
+
+test('面板：存了 blacklist 时显示「隐藏命中」并换文案', () => {
+  const { window, doc } = loadPopup({ filterMode: 'blacklist' });
+  try {
+    assert.equal(activeSeg(doc, 'filterSeg'), 'blacklist');
+    assert.match(doc.getElementById('subtitle').textContent, /黑名单/);
+    assert.match(doc.getElementById('filterHint').textContent, /隐藏/);
+    assert.match(doc.getElementById('combineHint').textContent, /隐藏/);
+    assert.match(doc.getElementById('emptyNotice').textContent, /隐藏/);
+  } finally {
+    window.close();
+  }
+});
+
+test('面板：切换过滤方式只写入 filterMode', () => {
+  const { window, doc, writes } = loadPopup({});
+  try {
+    doc.querySelector('#filterSeg button[data-filter="blacklist"]').click();
+    assert.deepEqual({ ...writes[0] }, { filterMode: 'blacklist' }, '只写改动的键，别把整套设置回写');
+    assert.equal(activeSeg(doc, 'filterSeg'), 'blacklist');
+    assert.match(doc.getElementById('combineHint').textContent, /隐藏/);
+    doc.querySelector('#filterSeg button[data-filter="whitelist"]').click();
+    assert.deepEqual({ ...writes[1] }, { filterMode: 'whitelist' });
+    assert.equal(activeSeg(doc, 'filterSeg'), 'whitelist');
+    assert.match(doc.getElementById('combineHint').textContent, /保留/);
+  } finally {
+    window.close();
+  }
+});
+
+test('面板：已存的并集/交集设置不会因为黑名单而被改写', () => {
+  const { window, doc } = loadPopup({ filterMode: 'blacklist', combine: 'intersect' });
+  try {
+    assert.equal(activeSeg(doc, 'filterSeg'), 'blacklist');
+    assert.equal(activeSeg(doc, 'combineSeg'), 'intersect');
   } finally {
     window.close();
   }

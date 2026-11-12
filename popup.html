@@ -123,13 +123,24 @@
     <img src="icons/icon48.png" alt="">
     <div>
       <h1>B站大肥鱼过滤器</h1>
-      <p>白名单：命中的留下，其余删除</p>
+      <p id="subtitle">白名单：命中的留下，其余删除</p>
     </div>
   </header>
 
   <div class="notice">没评论可显示时会自动加载更多（不滚动页面）</div>
 
   <main>
+    <section class="block" id="filterBlock">
+      <div class="row">
+        <div class="txt"><b>过滤方式</b></div>
+        <div class="seg" id="filterSeg">
+          <button type="button" data-filter="whitelist" class="on">保留命中</button>
+          <button type="button" data-filter="blacklist">隐藏命中</button>
+        </div>
+      </div>
+      <div class="hint" id="filterHint">白名单：命中规则的留下，其余隐藏</div>
+    </section>
+
     <section class="block" id="combineBlock">
       <div class="row">
         <div class="txt"><b>规则组合</b></div>
@@ -138,7 +149,7 @@
           <button type="button" data-combine="intersect">交集</button>
         </div>
       </div>
-      <div class="hint">并集：命中任一就保留；交集：所有启用的规则都命中才保留</div>
+      <div class="hint" id="combineHint">并集：命中任一就保留；交集：所有启用的规则都命中才保留</div>
     </section>
 
     <section class="block" id="fishBlock">
@@ -239,7 +250,7 @@
     </section>
   </main>
 
-  <div class="notice">注意：规则二、三都选「以…开头」且组合为交集、规则四又没命中时，一条评论都不会显示。</div>
+  <div class="notice" id="emptyNotice">注意：规则二、三都选「以…开头」且组合为交集、规则四又没命中时，一条评论都不会显示。</div>
   <div class="diag" id="diag">自动加载：待检测</div>
 
   <footer>

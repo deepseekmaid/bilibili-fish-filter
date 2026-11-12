@@ -3,7 +3,7 @@
   "version": "1.0.6",
   "private": true,
   "type": "module",
-  "description": "白名单式 B 站评论过滤：昵称含鱼 / 正文含 @ / 正文含主人 / 自定义昵称与评论词，任选并集或交集。",
+  "description": "B 站评论过滤：昵称含鱼 / 正文含 @ / 正文含主人 / 自定义昵称与评论词，任选并集或交集，可选保留或隐藏命中的评论。",
   "displayName": "B站大肥鱼过滤器 v1.06",
   "license": "MIT",
   "engines": {

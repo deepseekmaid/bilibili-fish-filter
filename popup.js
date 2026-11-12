@@ -1,5 +1,21 @@
 /* B站大肥鱼过滤器 — 设置面板 */
-const DEFAULTS = { atMode: 'off', modeFish: true, masterMode: 'startsWith', combine: 'union', autoLoad: false, fastMode: false, modeCustom: false, customNameWords: [], customTextWords: [], customCombine: 'union' };
+const DEFAULTS = { filterMode: 'whitelist', atMode: 'off', modeFish: true, masterMode: 'startsWith', combine: 'union', autoLoad: false, fastMode: false, modeCustom: false, customNameWords: [], customTextWords: [], customCombine: 'union' };
+
+// 白名单与黑名单下，同一套规则的「保留 / 隐藏」语义正好反过来，文案要跟着换
+const TEXT = {
+  whitelist: {
+    subtitle: '白名单：命中的留下，其余删除',
+    filterHint: '白名单：命中规则的留下，其余隐藏',
+    combineHint: '并集：命中任一就保留；交集：所有启用的规则都命中才保留',
+    emptyNotice: '注意：规则二、三都选「以…开头」且组合为交集、规则四又没命中时，一条评论都不会显示。',
+  },
+  blacklist: {
+    subtitle: '黑名单：命中的隐藏，其余保留',
+    filterHint: '黑名单：命中规则的隐藏，其余保留',
+    combineHint: '并集：命中任一就隐藏；交集：所有启用的规则都命中才隐藏',
+    emptyNotice: '提示：黑名单下选交集时，只有同时命中所有启用规则的评论才会被隐藏。',
+  },
+};
 
 const fish = document.getElementById('modeFish');
 const auto = document.getElementById('autoLoad');
@@ -7,6 +23,11 @@ const fast = document.getElementById('fastMode');
 const fishBlock = document.getElementById('fishBlock');
 const autoBlock = document.getElementById('autoBlock');
 const fastBlock = document.getElementById('fastBlock');
+const filterSeg = document.getElementById('filterSeg');
+const filterHint = document.getElementById('filterHint');
+const combineHint = document.getElementById('combineHint');
+const emptyNotice = document.getElementById('emptyNotice');
+const subtitle = document.getElementById('subtitle');
 const combineSeg = document.getElementById('combineSeg');
 const atSeg = document.getElementById('atSeg');
 const masterSeg = document.getElementById('masterSeg');
@@ -44,6 +65,7 @@ const LISTS = {
 };
 
 let timer = null;
+let filterMode = DEFAULTS.filterMode;
 let atMode = DEFAULTS.atMode;
 let combine = DEFAULTS.combine;
 let masterMode = DEFAULTS.masterMode;
@@ -68,7 +90,7 @@ function flash(error) {
 function paintSeg(seg, value) {
   if (!seg) return;
   for (const btn of seg.querySelectorAll('button')) {
-    const key = btn.dataset.mode || btn.dataset.combine;
+    const key = btn.dataset.mode || btn.dataset.combine || btn.dataset.filter;
     const on = key === value;
     btn.classList.toggle('on', on);
     btn.setAttribute('aria-pressed', String(on));
@@ -151,6 +173,7 @@ function paint() {
   fishBlock.classList.toggle('off', !fish.checked);
   autoBlock.classList.toggle('off', !auto.checked);
   fastBlock.classList.toggle('off', !fast.checked);
+  paintSeg(filterSeg, filterMode);
   paintSeg(combineSeg, combine);
   paintSeg(atSeg, atMode);
   paintSeg(masterSeg, masterMode);
@@ -158,6 +181,11 @@ function paint() {
   if (customBox && customBlock) {
     customBlock.classList.toggle('off', !customBox.checked);
   }
+  const text = TEXT[filterMode === 'blacklist' ? 'blacklist' : 'whitelist'];
+  if (subtitle) subtitle.textContent = text.subtitle;
+  if (filterHint) filterHint.textContent = text.filterHint;
+  if (combineHint) combineHint.textContent = text.combineHint;
+  if (emptyNotice) emptyNotice.textContent = text.emptyNotice;
   syncAddButtons();
 }
 
@@ -165,6 +193,7 @@ function persist(patch) {
   // 只写本次真正改动的键：一次把所有键（尤其两个词表）写回，会用本窗口的旧值
   // 覆盖另一个窗口/另一台设备刚加的词语。
   const payload = patch || {
+    filterMode,
     combine,
     atMode,
     modeFish: fish.checked,
@@ -263,6 +292,7 @@ if (globalThis.chrome?.storage?.sync) {
     fish.checked = value.modeFish !== false;
     auto.checked = value.autoLoad === true;
     fast.checked = value.fastMode === true;
+    filterMode = value.filterMode === 'blacklist' ? 'blacklist' : 'whitelist';
     combine = value.combine === 'intersect' ? 'intersect' : 'union';
     // 旧版本（≤1.6）存的是布尔 modeAt；content.js 会把它迁移成「包含 @」，面板要跟着显示，否则会与真实过滤不一致
     atMode = value.atMode === 'contains' || value.atMode === 'startsWith'
@@ -288,6 +318,16 @@ if (globalThis.chrome?.storage?.sync) {
     box.addEventListener('change', () => {
       paint();
       persist({ [SWITCH_KEYS.get(box)]: box.checked });
+    });
+  }
+
+  if (filterSeg) {
+    filterSeg.addEventListener('click', (event) => {
+      const btn = event.target.closest('button[data-filter]');
+      if (!btn) return;
+      filterMode = btn.dataset.filter === 'blacklist' ? 'blacklist' : 'whitelist';
+      paint();
+      persist({ filterMode });
     });
   }
 
@@ -322,6 +362,7 @@ if (globalThis.chrome?.storage?.sync) {
   fish.checked = DEFAULTS.modeFish;
   auto.checked = DEFAULTS.autoLoad;
   fast.checked = DEFAULTS.fastMode;
+  filterMode = DEFAULTS.filterMode;
   combine = DEFAULTS.combine;
   atMode = DEFAULTS.atMode;
   masterMode = DEFAULTS.masterMode;

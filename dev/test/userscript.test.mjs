@@ -168,7 +168,7 @@ test('油猴版：面板复用扩展弹窗（同样的结构与版本号）', as
     assert.ok(shadow.querySelector('.baf-fab'), '应有浮动按钮');
     shadow.querySelector('.baf-fab').click();
     await sleep(500);
-    for (const id of ['combineSeg', 'atSeg', 'masterSeg', 'modeFish', 'autoLoad', 'fastMode', 'ver', 'customBlock', 'modeCustom', 'customCombineSeg', 'customNameInput', 'customNameAdd', 'customNameChips', 'customTextInput', 'customTextAdd', 'customTextChips']) {
+    for (const id of ['filterSeg', 'combineSeg', 'atSeg', 'masterSeg', 'modeFish', 'autoLoad', 'fastMode', 'ver', 'customBlock', 'modeCustom', 'customCombineSeg', 'customNameInput', 'customNameAdd', 'customNameChips', 'customTextInput', 'customTextAdd', 'customTextChips']) {
       assert.ok(shadow.querySelector('#' + id), '面板里应有 #' + id);
     }
     assert.equal(shadow.querySelector('#ver').textContent, MANIFEST.version_name, '版本号应与 manifest.version_name 一致');
@@ -305,6 +305,36 @@ test('油猴版：旧版 customWords 只当评论词', async () => {
     await sleep(500);
     assert.equal(state(env.fish), 'hide', '昵称命中旧列表不应放行');
     assert.equal(state(env.at), 'hide');
+  } finally {
+    env.window.close();
+  }
+});
+
+test('油猴版：黑名单只隐藏命中的评论', async () => {
+  const env = boot({ 'baf.settings.v1': { filterMode: 'blacklist', modeFish: true, masterMode: 'off', combine: 'union' } });
+  try {
+    await sleep(500);
+    assert.equal(state(env.fish), 'hide', '昵称带鱼的应隐藏');
+    assert.equal(state(env.at), 'show', '未命中的应保留');
+    assert.equal(state(env.atMid), 'show');
+    assert.equal(state(env.plain), 'show');
+    assert.equal(state(env.master), 'show');
+  } finally {
+    env.window.close();
+  }
+});
+
+test('油猴版：黑名单下切换过滤方式即时生效', async () => {
+  const env = boot();
+  try {
+    await sleep(450);
+    assert.equal(state(env.fish), 'show', '默认白名单下昵称带鱼的保留');
+    env.window.__bafApply({ filterMode: 'blacklist', masterMode: 'off' });
+    await sleep(450);
+    assert.equal(state(env.fish), 'hide', '切到黑名单后应隐藏');
+    assert.equal(state(env.plain), 'show');
+    const saved = env.store['baf.settings.v1'];
+    assert.equal(saved.filterMode, 'blacklist', 'filterMode 应写回 GM 存储');
   } finally {
     env.window.close();
   }
